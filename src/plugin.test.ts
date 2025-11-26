@@ -101,6 +101,14 @@ describe('comments stability', () => {
     expect(first).toBe(`{{!--\n\t@name Example\n\n\tprop: string;\n--}}\n`);
     expect(second).toBe(first);
   });
+
+  it('trims trailing whitespace before closing dashes', async () => {
+    const input = `{{!--\n\t@name Example\n\n\tprop: string;\n --}}`;
+    const first = await format(input);
+    const second = await format(first);
+    expect(first).toBe(`{{!--\n\t@name Example\n\n\tprop: string;\n--}}\n`);
+    expect(second).toBe(first);
+  });
 });
 
 describe('void elements', () => {
@@ -186,5 +194,16 @@ describe('line wrapping', () => {
   tabindex="-1"
 ></a>
 `);
+  });
+});
+
+describe('element children', () => {
+  it('keeps single child elements on new lines', async () => {
+    const input =
+      '<a class="material-card__title-block" href="{{ href }}" tabindex="-1"><span class="material-card__title">{{ name }}</span></a>';
+
+    const output = await format(input);
+
+    expect(output).toBe(`<a class=\"material-card__title-block\" href=\"{{ href }}\" tabindex=\"-1\">\n  <span class=\"material-card__title\">{{ name }}</span>\n</a>\n`);
   });
 });

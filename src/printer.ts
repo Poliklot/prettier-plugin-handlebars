@@ -210,12 +210,15 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
 
   const closeDoc = concat(['</', node.tag, '>']);
 
-  if (
+  const singleChild = node.children.length === 1 ? node.children[0] : null;
+  const canInline =
     childrenDocs.length === 1 &&
+    singleChild?.type !== 'ElementNode' &&
     !docHasHardline(openDoc) &&
     !docHasHardline(childrenDocs[0]) &&
-    !docHasHardline(closeDoc)
-  ) {
+    !docHasHardline(closeDoc);
+
+  if (canInline) {
     return concat([openDoc, childrenDocs[0], closeDoc]);
   }
 
