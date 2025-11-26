@@ -100,9 +100,10 @@ function parseChildren(text: string, position: number, endTag: string | null, en
 
     // Text node until next markup
     const nextMarkup = findNextMarkup(text, pos);
-    const value = text.slice(pos, nextMarkup);
-    if (value.trim().length > 0) {
-      nodes.push({ type: 'TextNode', value } as TextNode);
+    const rawValue = text.slice(pos, nextMarkup);
+    const trimmed = rawValue.trim();
+    if (trimmed.length > 0) {
+      nodes.push({ type: 'TextNode', value: trimmed } as TextNode);
     }
     pos = nextMarkup;
   }
@@ -129,12 +130,15 @@ function parseBlock(text: string, token: MustacheToken): { node: BlockStatement;
     finalPos = endToken.end;
   }
 
+  // Drop the mustache-specific `type` field so we can build a proper BlockStatement
+  const { type: _ignored, ...expression } = openInfo;
+
   const node: BlockStatement = {
     type: 'BlockStatement',
     program,
     inverse,
     rawOpen: token.content,
-    ...openInfo,
+    ...expression,
   };
 
   return { node, next: finalPos };

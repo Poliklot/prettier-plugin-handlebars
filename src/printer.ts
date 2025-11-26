@@ -14,7 +14,7 @@ export const printer: Printer<Node> = {
       case 'ElementNode':
         return printElement(path as AstPath<ElementNode>, options, print);
       case 'TextNode':
-        return node.value;
+        return node.value.replace(/\s+/g, ' ').trim();
       case 'MustacheStatement':
         return printMustache(node);
       case 'BlockStatement':
@@ -141,10 +141,8 @@ function formatClassValue(value: string): Doc[] {
 }
 
 function indentWithDepth(content: string, depth: number): Doc {
-  if (depth <= 0) {
-    return content;
-  }
-  return concat([indent(indentWithDepth(content, depth - 1))]);
+  const prefix = depth > 0 ? '  '.repeat(depth) : '';
+  return concat([prefix, content]);
 }
 
 function tokenizeClass(value: string): string[] {
@@ -181,7 +179,8 @@ function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print
     bodyDocs.push(print(childPath as AstPath<Node>));
   }, 'program');
 
-  const body = bodyDocs.length > 0 ? concat([indent(concat([hardline, join(hardline, bodyDocs)])), hardline]) : hardline;
+  const body =
+    bodyDocs.length > 0 ? concat([indent(concat([hardline, join(hardline, bodyDocs)])), hardline]) : hardline;
 
   let inverse: Doc = '';
   if (node.inverse.length > 0) {
@@ -211,8 +210,7 @@ function printPartial(node: PartialStatement, options: ParserOptions): Doc {
     concat([
       '{{> ',
       name,
-      hardline,
-      indent(join(hardline, paramsDocs)),
+      indent(indent(concat([hardline, join(hardline, paramsDocs)]))),
       hardline,
       '}}',
     ]),
