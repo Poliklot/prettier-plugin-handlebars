@@ -28,6 +28,7 @@ export interface ElementNode {
 export interface TextNode {
   type: 'TextNode';
   value: string;
+  blankLines?: number;
 }
 
 export interface HashPair {

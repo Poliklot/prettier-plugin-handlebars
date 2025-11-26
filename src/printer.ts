@@ -31,6 +31,15 @@ function docHasHardline(doc: Doc): boolean {
   return false;
 }
 
+function getMaxEmptyLines(options: ParserOptions): number {
+  const rawValue = (options as Record<string, unknown>).maxEmptyLines;
+  if (typeof rawValue === 'number' && rawValue >= 1) {
+    return rawValue;
+  }
+
+  return 1;
+}
+
 export const printer: Printer<Node> = {
   print(path, options, print) {
     const node = path.getValue() as Node;
@@ -41,6 +50,12 @@ export const printer: Printer<Node> = {
       case 'ElementNode':
         return printElement(path as AstPath<ElementNode>, options, print);
       case 'TextNode':
+        if (node.blankLines) {
+          const maxEmptyLines = getMaxEmptyLines(options);
+          const allowedBlankLines = Math.min(node.blankLines, maxEmptyLines);
+          const extraHardlines = allowedBlankLines - 1;
+          return extraHardlines > 0 ? concat(new Array(extraHardlines).fill(hardline)) : '';
+        }
         return node.value.replace(/\s+/g, ' ').trim();
       case 'MustacheStatement':
         return printMustache(node);

@@ -207,3 +207,33 @@ describe('element children', () => {
     expect(output).toBe(`<a class=\"material-card__title-block\" href=\"{{ href }}\" tabindex=\"-1\">\n  <span class=\"material-card__title\">{{ name }}</span>\n</a>\n`);
   });
 });
+
+describe('blank lines', () => {
+  const template = `<div>
+  {{#if value}}
+    <span>one</span>
+  {{/if}}
+
+  <span>two</span>
+</div>`;
+
+  it('preserves a single intentional blank line between nodes', async () => {
+    const output = await format(template);
+
+    expect(output).toBe(`<div>\n  {{#if value}}\n    <span>one</span>\n  {{/if}}\n\n  <span>two</span>\n</div>\n`);
+  });
+
+  it('reduces multiple blank lines to the configured maximum', async () => {
+    const input = `<div>\n  {{#if value}}\n    <span>one</span>\n  {{/if}}\n\n\n  <span>two</span>\n</div>`;
+    const output = await format(input);
+
+    expect(output).toBe(`<div>\n  {{#if value}}\n    <span>one</span>\n  {{/if}}\n\n  <span>two</span>\n</div>\n`);
+  });
+
+  it('honors overrides that allow more than one blank line', async () => {
+    const input = `<div>\n  {{#if value}}\n    <span>one</span>\n  {{/if}}\n\n\n  <span>two</span>\n</div>`;
+    const output = await format(input, { maxEmptyLines: 2 });
+
+    expect(output).toBe(`<div>\n  {{#if value}}\n    <span>one</span>\n  {{/if}}\n\n\n  <span>two</span>\n</div>\n`);
+  });
+});
