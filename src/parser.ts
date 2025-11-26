@@ -121,6 +121,12 @@ function parseChildren(text: string, position: number, endTag: string | null, en
     const trimmed = rawValue.trim();
     if (trimmed.length > 0) {
       nodes.push({ type: 'TextNode', value: trimmed } as TextNode);
+    } else {
+      const newlineCount = (rawValue.match(/\n/g) || []).length;
+      const blankLines = Math.max(newlineCount - 1, 0);
+      if (blankLines > 0) {
+        nodes.push({ type: 'TextNode', value: '', blankLines } as TextNode);
+      }
     }
     pos = nextMarkup;
   }
