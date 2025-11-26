@@ -111,6 +111,22 @@ describe('comments stability', () => {
   });
 });
 
+describe('unmatched structures', () => {
+  it('does not synthesize closing tags for incomplete blocks', async () => {
+    const input = `{{#if (or categoryName countView)}}\n  {{! comment}}\n  <div class="material-card__info">`;
+    const output = await format(input);
+
+    expect(output).toBe(`{{#if (or categoryName countView)}}\n{{! comment}}\n<div class=\"material-card__info\">\n`);
+  });
+
+  it('keeps lone element start tags without adding implicit closings', async () => {
+    const input = `<div class="material-card__info">\nText`;
+    const output = await format(input);
+
+    expect(output).toBe(`<div class=\"material-card__info\">\nText\n`);
+  });
+});
+
 describe('void elements', () => {
   it('treats source as self closing without explicit slash', async () => {
     const input =

@@ -1,4 +1,4 @@
-import { Program, Node, ElementAttribute, ElementNode, TextNode, MustacheStatement, BlockStatement, PartialStatement, CommentStatement, HashPair, ParseEndReason } from './types';
+import { Program, Node, ElementAttribute, ElementNode, TextNode, MustacheStatement, BlockStatement, PartialStatement, CommentStatement, HashPair, ParseEndReason, UnmatchedNode } from './types';
 
 interface ParseResult {
   nodes: Node[];
@@ -53,6 +53,12 @@ function parseChildren(text: string, position: number, endTag: string | null, en
       }
 
       if (token.kind === 'blockStart') {
+        if (!hasMatchingBlockEnd(text, token, pos)) {
+          nodes.push(createUnmatchedNode(text, pos, token.end));
+          pos = token.end;
+          continue;
+        }
+
         const { node, next } = parseBlock(text, token);
         nodes.push(node);
         pos = next;
@@ -103,6 +109,12 @@ function parseChildren(text: string, position: number, endTag: string | null, en
         continue;
       }
 
+      if (!hasMatchingTagEnd(text, tagResult.tag, tagResult.end)) {
+        nodes.push(createUnmatchedNode(text, pos, tagResult.end));
+        pos = tagResult.end;
+        continue;
+      }
+
       const { nodes: children, position: newPos } = parseChildren(text, tagResult.end, tagResult.tag, null);
       nodes.push({
         type: 'ElementNode',
@@ -132,6 +144,14 @@ function parseChildren(text: string, position: number, endTag: string | null, en
   }
 
   return { nodes, position: pos, endReason: null };
+}
+
+function hasMatchingBlockEnd(text: string, token: MustacheToken, start: number): boolean {
+  if (!token.name) {
+    return false;
+  }
+
+  return text.indexOf(`{{/${token.name}`, start + 1) !== -1;
 }
 
 function parseBlock(text: string, token: MustacheToken): { node: BlockStatement; next: number } {
@@ -165,6 +185,14 @@ function parseBlock(text: string, token: MustacheToken): { node: BlockStatement;
   };
 
   return { node, next: finalPos };
+}
+
+function hasMatchingTagEnd(text: string, tag: string, start: number): boolean {
+  return text.indexOf(`</${tag}`, start) !== -1;
+}
+
+function createUnmatchedNode(text: string, start: number, end: number): UnmatchedNode {
+  return { type: 'UnmatchedNode', raw: text.slice(start, end) };
 }
 
 type MustacheTokenKind = 'blockStart' | 'blockEnd' | 'partial' | 'comment' | 'mustache' | 'else';
