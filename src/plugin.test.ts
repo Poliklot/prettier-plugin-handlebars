@@ -12,10 +12,10 @@ async function format(source: string, overrides: prettier.Options = {}) {
 }
 
 describe('attribute ordering', () => {
-  it('sorts id and class first and breaks attributes', async () => {
+  it('sorts id and class first while keeping simple attributes inline', async () => {
     const input = "<div data-attr class='c' id='main'></div>";
     const output = await format(input);
-    expect(output).toBe("<div\n  id=\"main\"\n  class=\"c\"\n  data-attr\n></div>\n");
+    expect(output).toBe("<div id=\"main\" class=\"c\" data-attr></div>\n");
   });
 });
 
@@ -108,9 +108,7 @@ describe('void elements', () => {
     const input =
       '<source media="(min-width:1440px)" srcset="@img/pic.avif" type="image/avif">';
     const output = await format(input);
-    expect(output).toBe(
-      `<source\n  media=\"(min-width:1440px)\"\n  srcset=\"@img/pic.avif\"\n  type=\"image/avif\"\n/>\n`,
-    );
+    expect(output).toBe(`<source media=\"(min-width:1440px)\" srcset=\"@img/pic.avif\" type=\"image/avif\" />\n`);
   });
 });
 
@@ -118,8 +116,55 @@ describe('data attribute ordering', () => {
   it('allows overriding data-* order through config', async () => {
     const input = '<div data-b="b" data-a="a" data-c="c"></div>';
     const output = await format(input, { dataAttributeOrder: ['data-c', 'data-a'] });
-    expect(output).toBe(
-      `<div\n  data-c=\"c\"\n  data-a=\"a\"\n  data-b=\"b\"\n></div>\n`,
-    );
+    expect(output).toBe(`<div data-c=\"c\" data-a=\"a\" data-b=\"b\"></div>\n`);
+  });
+});
+
+describe('handlebars attribute blocks', () => {
+  it('preserves block-scoped attribute order and keeps simple wrappers inline', async () => {
+    const input = `<a href="{{ href }}" class="material-card__image-wrapper" tabindex="-1">
+  <img
+    alt="{{ name }}"
+    title="{{ name }}"
+    class="
+      material-card__image
+      {{#ifEquals imgLoading 'lazy'}}
+        lazy
+      {{/ifEquals}}
+    "
+    {{#ifEquals imgLoading 'lazy'}}
+      src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII="
+      data-src="{{ imgSrc }}"
+    {{/ifEquals}}
+    {{#ifEquals imgLoading 'eager'}}
+      src="{{ imgSrc }}"
+      loading="eager"
+    {{/ifEquals}}
+  />
+</a>`;
+
+    const output = await format(input);
+
+    expect(output).toBe(`<a class="material-card__image-wrapper" href="{{ href }}" tabindex="-1">
+  <img
+    class="
+      material-card__image
+      {{#ifEquals imgLoading 'lazy'}}
+        lazy
+      {{/ifEquals}}
+    "
+    alt="{{ name }}"
+    title="{{ name }}"
+    {{#ifEquals imgLoading 'lazy'}}
+      src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII="
+      data-src="{{ imgSrc }}"
+    {{/ifEquals}}
+    {{#ifEquals imgLoading 'eager'}}
+      src="{{ imgSrc }}"
+      loading="eager"
+    {{/ifEquals}}
+  />
+</a>
+`);
   });
 });

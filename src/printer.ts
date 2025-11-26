@@ -71,6 +71,42 @@ function printProgram(path: AstPath<Program>, options: ParserOptions, print: (pa
 }
 
 function sortAttributes(attributes: ElementAttribute[], options: ParserOptions): ElementAttribute[] {
+  const sorted: ElementAttribute[] = [];
+  let buffer: ElementAttribute[] = [];
+  let blockDepth = 0;
+
+  const flush = (shouldSort: boolean) => {
+    if (buffer.length === 0) return;
+    sorted.push(...(shouldSort ? sortPlainAttributes(buffer, options) : buffer));
+    buffer = [];
+  };
+
+  attributes.forEach((attr) => {
+    const isHandlebars = attr.name.startsWith('{{');
+
+    if (!isHandlebars) {
+      buffer.push(attr);
+      return;
+    }
+
+    flush(blockDepth === 0);
+    sorted.push(attr);
+
+    if (attr.name.startsWith('{{#')) {
+      blockDepth += 1;
+    }
+
+    if (attr.name.startsWith('{{/')) {
+      blockDepth = Math.max(blockDepth - 1, 0);
+    }
+  });
+
+  flush(blockDepth === 0);
+
+  return sorted;
+}
+
+function sortPlainAttributes(attributes: ElementAttribute[], options: ParserOptions): ElementAttribute[] {
   const others = attributes.filter((attr) => attr.name !== 'id' && attr.name !== 'class');
   const idAttr = attributes.find((attr) => attr.name === 'id');
   const classAttr = attributes.find((attr) => attr.name === 'class');
@@ -96,6 +132,30 @@ function sortAttributes(attributes: ElementAttribute[], options: ParserOptions):
   return ordered.concat(sortedData).concat(nonDataAttrs);
 }
 
+function buildAttributeDocs(attributes: ElementAttribute[]): Doc[] {
+  const docs: Doc[] = [];
+  let depth = 0;
+
+  attributes.forEach((attr) => {
+    const isBlockStart = attr.name.startsWith('{{#');
+    const isBlockEnd = attr.name.startsWith('{{/');
+    const isElse = attr.name.startsWith('{{else');
+
+    if (isBlockEnd || isElse) {
+      depth = Math.max(depth - 1, 0);
+    }
+
+    const paddedDoc = depth > 0 ? concat(['  '.repeat(depth), printAttribute(attr)]) : printAttribute(attr);
+    docs.push(paddedDoc);
+
+    if (isBlockStart || isElse) {
+      depth += 1;
+    }
+  });
+
+  return docs;
+}
+
 function shouldBreakAttribute(attr: ElementAttribute): boolean {
   if (attr.name.startsWith('{{')) {
     return true;
@@ -115,25 +175,25 @@ function shouldBreakAttribute(attr: ElementAttribute): boolean {
 function printElement(path: AstPath<ElementNode>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {
   const node = path.getValue();
   const sortedAttributes = sortAttributes(node.attributes, options);
-  const multiline = sortedAttributes.length > 1 || sortedAttributes.some((attr) => shouldBreakAttribute(attr));
 
   const openTag = concat(['<', node.tag]);
   let attributesDoc: Doc = '';
 
   if (sortedAttributes.length > 0) {
-    const attrsDocs = sortedAttributes.map((attr) => printAttribute(attr));
-    const breakAttrs = multiline || attrsDocs.some(docHasHardline);
+    const attrsDocs = buildAttributeDocs(sortedAttributes);
+    const breakAttrs =
+      sortedAttributes.some((attr) => shouldBreakAttribute(attr)) || attrsDocs.some(docHasHardline);
     if (breakAttrs) {
       attributesDoc = concat([
         indent(concat([hardline, join(hardline, attrsDocs)])),
         hardline,
       ]);
     } else {
-      attributesDoc = concat([' ', attrsDocs[0]]);
+      attributesDoc = concat([' ', join(' ', attrsDocs)]);
     }
   }
 
-  const closing = node.selfClosing ? '/>' : '>';
+  const closing = node.selfClosing ? (docHasHardline(attributesDoc) ? '/>' : ' />') : '>';
   const openDoc = group(concat([openTag, attributesDoc, closing]));
 
   if (node.selfClosing) {
