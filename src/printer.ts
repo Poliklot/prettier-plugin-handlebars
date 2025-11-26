@@ -2,7 +2,8 @@ import type { AstPath, Doc, ParserOptions, Printer } from 'prettier';
 import { builders } from 'prettier/doc';
 import { BlockStatement, ElementAttribute, ElementNode, HashPair, MustacheStatement, Node, PartialStatement, Program, TextNode } from './types';
 
-const { concat, hardline, join, group, indent } = builders;
+const { hardline, join, group, indent } = builders;
+const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
 
 export const printer: Printer<Node> = {
   print(path, options, print) {
@@ -22,7 +23,7 @@ export const printer: Printer<Node> = {
       case 'PartialStatement':
         return printPartial(node, options);
       case 'CommentStatement':
-        return node.multiline ? concat(['{{!-- ', node.value.trim(), ' --}}']) : concat(['{{! ', node.value.trim(), ' }}']);
+        return node.multiline ? formatMultilineComment(node.value) : concat(['{{! ', node.value, '}}']);
       default:
         return '';
     }
@@ -43,19 +44,35 @@ function printProgram(path: AstPath<Program>, options: ParserOptions, print: (pa
   return concat([join(hardline, parts), hardline]);
 }
 
-function sortAttributes(attributes: ElementAttribute[]): ElementAttribute[] {
+function sortAttributes(attributes: ElementAttribute[], options: ParserOptions): ElementAttribute[] {
   const others = attributes.filter((attr) => attr.name !== 'id' && attr.name !== 'class');
   const idAttr = attributes.find((attr) => attr.name === 'id');
   const classAttr = attributes.find((attr) => attr.name === 'class');
   const ordered: ElementAttribute[] = [];
   if (idAttr) ordered.push(idAttr);
   if (classAttr) ordered.push(classAttr);
-  return ordered.concat(others);
+
+  const preferredDataOrder: string[] = (options as Record<string, unknown>).dataAttributeOrder as string[];
+  const dataOrder = Array.isArray(preferredDataOrder) ? preferredDataOrder : [];
+  const orderMap = new Map(dataOrder.map((name, index) => [name, index]));
+
+  const dataAttrs = others.filter((attr) => attr.name.startsWith('data-'));
+  const nonDataAttrs = others.filter((attr) => !attr.name.startsWith('data-'));
+
+  const sortedData = dataAttrs.slice().sort((a, b) => {
+    const aRank = orderMap.has(a.name) ? (orderMap.get(a.name) as number) : Number.MAX_SAFE_INTEGER;
+    const bRank = orderMap.has(b.name) ? (orderMap.get(b.name) as number) : Number.MAX_SAFE_INTEGER;
+
+    if (aRank !== bRank) return aRank - bRank;
+    return attributes.indexOf(a) - attributes.indexOf(b);
+  });
+
+  return ordered.concat(sortedData).concat(nonDataAttrs);
 }
 
 function printElement(path: AstPath<ElementNode>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {
   const node = path.getValue();
-  const sortedAttributes = sortAttributes(node.attributes);
+  const sortedAttributes = sortAttributes(node.attributes, options);
   const multiline = sortedAttributes.length > 1;
 
   const openTag = concat(['<', node.tag]);
@@ -210,11 +227,24 @@ function printPartial(node: PartialStatement, options: ParserOptions): Doc {
     concat([
       '{{> ',
       name,
-      indent(indent(concat([hardline, join(hardline, paramsDocs)]))),
+      indent(concat([hardline, join(hardline, paramsDocs)])),
       hardline,
       '}}',
     ]),
   );
+}
+
+function formatMultilineComment(content: string): Doc {
+  const needsLeadingSpace = !content.startsWith('\n');
+  const needsTrailingSpace = !content.endsWith('\n');
+
+  return concat([
+    '{{!--',
+    needsLeadingSpace ? ' ' : '',
+    content,
+    needsTrailingSpace ? ' ' : '',
+    '--}}',
+  ]);
 }
 
 function buildExpression(node: MustacheStatement | BlockStatement | PartialStatement): string {

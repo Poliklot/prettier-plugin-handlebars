@@ -7,6 +7,23 @@ interface ParseResult {
 }
 
 const whitespace = /\s/;
+const voidElements = new Set([
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'keygen',
+  'link',
+  'meta',
+  'param',
+  'source',
+  'track',
+  'wbr',
+]);
 
 export function parse(text: string): Program {
   const { nodes } = parseChildren(text, 0, null, null);
@@ -56,7 +73,7 @@ function parseChildren(text: string, position: number, endTag: string | null, en
       }
 
       if (token.kind === 'comment') {
-        nodes.push(createComment(token.content));
+        nodes.push(createComment(token.rawContent));
         pos = token.end;
         continue;
       }
@@ -149,6 +166,7 @@ type MustacheTokenKind = 'blockStart' | 'blockEnd' | 'partial' | 'comment' | 'mu
 interface MustacheToken {
   kind: MustacheTokenKind;
   content: string;
+  rawContent: string;
   end: number;
   triple: boolean;
   name?: string;
@@ -159,31 +177,32 @@ function parseMustacheToken(text: string, position: number): MustacheToken {
   const close = triple ? '}}}' : '}}';
   const closeIdx = text.indexOf(close, position + (triple ? 3 : 2));
   const end = closeIdx >= 0 ? closeIdx + close.length : text.length;
-  const inner = text.slice(position + (triple ? 3 : 2), closeIdx >= 0 ? closeIdx : undefined).trim();
+  const rawContent = text.slice(position + (triple ? 3 : 2), closeIdx >= 0 ? closeIdx : undefined);
+  const inner = rawContent.trim();
 
   if (inner.startsWith('!')) {
-    return { kind: 'comment', content: inner, end, triple, name: undefined };
+    return { kind: 'comment', content: inner, rawContent, end, triple, name: undefined };
   }
 
   if (inner.startsWith('>')) {
-    return { kind: 'partial', content: inner.slice(1).trim(), end, triple, name: undefined };
+    return { kind: 'partial', content: inner.slice(1).trim(), rawContent, end, triple, name: undefined };
   }
 
   if (inner.startsWith('#')) {
     const name = inner.slice(1).trim().split(/\s+/)[0];
-    return { kind: 'blockStart', content: inner, end, triple, name };
+    return { kind: 'blockStart', content: inner, rawContent, end, triple, name };
   }
 
   if (inner.startsWith('/')) {
     const name = inner.slice(1).trim();
-    return { kind: 'blockEnd', content: inner, end, triple, name };
+    return { kind: 'blockEnd', content: inner, rawContent, end, triple, name };
   }
 
   if (inner === 'else' || inner.startsWith('else ')) {
-    return { kind: 'else', content: inner, end, triple, name: 'else' };
+    return { kind: 'else', content: inner, rawContent, end, triple, name: 'else' };
   }
 
-  return { kind: 'mustache', content: inner, end, triple, name: undefined };
+  return { kind: 'mustache', content: inner, rawContent, end, triple, name: undefined };
 }
 
 function parseTag(text: string, position: number):
@@ -211,22 +230,40 @@ function parseTag(text: string, position: number):
     }
     if (text[pos] === '>') {
       pos += 1;
-      return { kind: 'open', tag, attributes, end: pos };
+      const kind = voidElements.has(tag.toLowerCase()) ? 'selfClosing' : 'open';
+      return { kind, tag, attributes, end: pos };
     }
 
+    const beforeAttr = pos;
     const attr = parseAttribute(text, pos);
+
+    if (!attr) {
+      pos = beforeAttr + 1;
+      continue;
+    }
+
     attributes.push(attr.attribute);
     pos = attr.position;
+
+    if (pos <= beforeAttr) {
+      pos = beforeAttr + 1;
+    }
   }
 
-  return { kind: 'open', tag, attributes, end: pos };
+  const kind = voidElements.has(tag.toLowerCase()) ? 'selfClosing' : 'open';
+  return { kind, tag, attributes, end: pos };
 }
 
-function parseAttribute(text: string, position: number): { attribute: ElementAttribute; position: number } {
+function parseAttribute(text: string, position: number): { attribute: ElementAttribute; position: number } | null {
   let pos = position;
   skipWhitespace(text, () => pos++, () => pos);
   const { value: name, next } = readName(text, pos);
   pos = next;
+
+  if (!name) {
+    return null;
+  }
+
   skipWhitespace(text, () => pos++, () => pos);
 
   if (text[pos] !== '=') {
@@ -322,11 +359,14 @@ function createPartial(content: string): PartialStatement {
 }
 
 function createComment(content: string): CommentStatement {
-  const multiline = content.startsWith('!--');
+  const withoutOpen = content.replace(/^[\t ]*!-{0,2}/, '');
+  const withoutClosing = withoutOpen.replace(/-{2}\s*$/, '');
+  const value = withoutClosing.startsWith('\n') ? withoutClosing : withoutClosing.replace(/^\s*/, '');
+
   return {
     type: 'CommentStatement',
-    value: content.replace(/^!(-{2})?\s*/, ''),
-    multiline,
+    value,
+    multiline: /\n/.test(content),
   };
 }
 

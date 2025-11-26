@@ -21,3 +21,14 @@ export const parsers = {
 export const printers = {
   'handlebars-custom-ast': printer,
 };
+
+export const options = {
+  dataAttributeOrder: {
+    since: '0.1.0',
+    category: 'HTML',
+    type: 'string',
+    array: true,
+    default: [{ value: [] }],
+    description: 'Ordering override for data-* attributes.',
+  },
+};
