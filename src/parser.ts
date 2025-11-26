@@ -372,7 +372,11 @@ function createPartial(content: string): PartialStatement {
 function createComment(content: string): CommentStatement {
   const withoutOpen = content.replace(/^[\t ]*!-{0,2}/, '');
   const withoutClosing = withoutOpen.replace(/-{2}\s*$/, '');
-  const value = withoutClosing.startsWith('\n') ? withoutClosing : withoutClosing.replace(/^\s*/, '');
+  let value = withoutClosing.startsWith('\n') ? withoutClosing : withoutClosing.replace(/^\s*/, '');
+
+  if (/\n/.test(value)) {
+    value = value.replace(/[ \t]+$/gm, '');
+  }
 
   return {
     type: 'CommentStatement',
