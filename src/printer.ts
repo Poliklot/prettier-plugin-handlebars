@@ -5,6 +5,32 @@ import { BlockStatement, ElementAttribute, ElementNode, HashPair, MustacheStatem
 const { hardline, join, group, indent } = builders;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
 
+function docHasHardline(doc: Doc): boolean {
+  if (typeof doc === 'string' || typeof doc === 'number' || doc === null || doc === undefined) {
+    return false;
+  }
+
+  if (doc === hardline) {
+    return true;
+  }
+
+  if (Array.isArray(doc)) {
+    return doc.some(docHasHardline);
+  }
+
+  if (typeof doc === 'object' && 'contents' in doc) {
+    // @ts-expect-error - prettier Doc internals
+    return docHasHardline((doc as { contents: Doc }).contents);
+  }
+
+  if (typeof doc === 'object' && 'parts' in doc) {
+    // @ts-expect-error - prettier Doc internals
+    return docHasHardline((doc as { parts: Doc[] }).parts);
+  }
+
+  return false;
+}
+
 export const printer: Printer<Node> = {
   print(path, options, print) {
     const node = path.getValue() as Node;
@@ -70,17 +96,34 @@ function sortAttributes(attributes: ElementAttribute[], options: ParserOptions):
   return ordered.concat(sortedData).concat(nonDataAttrs);
 }
 
+function shouldBreakAttribute(attr: ElementAttribute): boolean {
+  if (attr.name.startsWith('{{')) {
+    return true;
+  }
+
+  if (typeof attr.value === 'string' && /\n/.test(attr.value)) {
+    return true;
+  }
+
+  if (attr.name === 'class' && typeof attr.value === 'string' && /{{[#/^]/.test(attr.value)) {
+    return true;
+  }
+
+  return false;
+}
+
 function printElement(path: AstPath<ElementNode>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {
   const node = path.getValue();
   const sortedAttributes = sortAttributes(node.attributes, options);
-  const multiline = sortedAttributes.length > 1;
+  const multiline = sortedAttributes.length > 1 || sortedAttributes.some((attr) => shouldBreakAttribute(attr));
 
   const openTag = concat(['<', node.tag]);
   let attributesDoc: Doc = '';
 
   if (sortedAttributes.length > 0) {
     const attrsDocs = sortedAttributes.map((attr) => printAttribute(attr));
-    if (multiline) {
+    const breakAttrs = multiline || attrsDocs.some(docHasHardline);
+    if (breakAttrs) {
       attributesDoc = concat([
         indent(concat([hardline, join(hardline, attrsDocs)])),
         hardline,
@@ -102,9 +145,20 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
     childrenDocs.push(print(childPath as AstPath<Node>));
   }, 'children');
 
-  const inner = childrenDocs.length > 0 ? concat([indent(concat([hardline, join(hardline, childrenDocs)])), hardline]) : '';
-
   const closeDoc = concat(['</', node.tag, '>']);
+
+  if (
+    childrenDocs.length === 1 &&
+    !docHasHardline(openDoc) &&
+    !docHasHardline(childrenDocs[0]) &&
+    !docHasHardline(closeDoc)
+  ) {
+    return concat([openDoc, childrenDocs[0], closeDoc]);
+  }
+
+  const inner =
+    childrenDocs.length > 0 ? concat([indent(concat([hardline, join(hardline, childrenDocs)])), hardline]) : '';
+
   return concat([openDoc, inner, closeDoc]);
 }
 
@@ -185,7 +239,8 @@ function printMustache(node: MustacheStatement): Doc {
   const content = buildExpression(node);
   const open = node.triple ? '{{{' : '{{';
   const close = node.triple ? '}}}' : '}}';
-  return concat([open, ' ', content, ' ', close]);
+  const spacing = content.length > 0 ? ' ' : '';
+  return concat([open, spacing, content, spacing, close]);
 }
 
 function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {

@@ -38,7 +38,7 @@ describe('class with condition', () => {
     const input = "<div class=\"some{{#if other}} other{{/if}}\"></div>";
     const output = await format(input);
     expect(output).toBe(
-      "<div class=\"\n  some\n  {{#if other}}\n    other\n  {{/if}}\n\"></div>\n",
+      "<div\n  class=\"\n    some\n    {{#if other}}\n      other\n    {{/if}}\n  \"\n></div>\n",
     );
   });
 });

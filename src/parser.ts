@@ -224,6 +224,17 @@ function parseTag(text: string, position: number):
 
   while (pos < text.length) {
     skipWhitespace(text, () => pos++, () => pos);
+
+    if (text.startsWith('{{', pos)) {
+      const token = parseMustacheToken(text, pos);
+      const open = token.triple ? '{{{' : '{{';
+      const close = token.triple ? '}}}' : '}}';
+      const content = token.content;
+      attributes.push({ name: `${open}${content}${close}` });
+      pos = token.end;
+      continue;
+    }
+
     if (text[pos] === '/' && text[pos + 1] === '>') {
       pos += 2;
       return { kind: 'selfClosing', tag, attributes, end: pos };
@@ -389,7 +400,8 @@ function splitParams(tokens: string[]): { params: string[]; hash: HashPair[] } {
 }
 
 function normalizeExpression(content: string): string {
-  return tokenize(content.trim()).join(' ');
+  const joined = tokenize(content.trim()).join(' ');
+  return joined.replace(/\(\s+/g, '(').replace(/\s+\)/g, ')');
 }
 
 function tokenize(content: string): string[] {
