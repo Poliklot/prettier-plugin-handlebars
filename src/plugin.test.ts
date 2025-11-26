@@ -168,3 +168,23 @@ describe('handlebars attribute blocks', () => {
 `);
   });
 });
+
+describe('line wrapping', () => {
+  it('wraps long attribute lists to new lines when exceeding print width', async () => {
+    const input =
+      '<a class="material-card__image-wrapper" data-one="one" data-two="two" data-three="three" data-four="four" href="{{ href }}" tabindex="-1"></a>';
+
+    const output = await format(input, { printWidth: 120 });
+
+    expect(output).toBe(`<a
+  class="material-card__image-wrapper"
+  data-one="one"
+  data-two="two"
+  data-three="three"
+  data-four="four"
+  href="{{ href }}"
+  tabindex="-1"
+></a>
+`);
+  });
+});

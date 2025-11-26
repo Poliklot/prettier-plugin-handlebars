@@ -2,7 +2,7 @@ import type { AstPath, Doc, ParserOptions, Printer } from 'prettier';
 import { builders } from 'prettier/doc';
 import { BlockStatement, ElementAttribute, ElementNode, HashPair, MustacheStatement, Node, PartialStatement, Program, TextNode } from './types';
 
-const { hardline, join, group, indent } = builders;
+const { hardline, join, group, indent, line, softline } = builders;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
 
 function docHasHardline(doc: Doc): boolean {
@@ -189,7 +189,10 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
         hardline,
       ]);
     } else {
-      attributesDoc = concat([' ', join(' ', attrsDocs)]);
+      attributesDoc = concat([
+        group(indent(concat([line, join(line, attrsDocs)]))),
+        softline,
+      ]);
     }
   }
 
