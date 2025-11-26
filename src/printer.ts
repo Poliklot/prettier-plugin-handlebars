@@ -65,8 +65,7 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
     const attrsDocs = sortedAttributes.map((attr) => printAttribute(attr));
     if (multiline) {
       attributesDoc = concat([
-        hardline,
-        indent(join(hardline, attrsDocs)),
+        indent(concat([hardline, join(hardline, attrsDocs)])),
         hardline,
       ]);
     } else {
@@ -101,8 +100,7 @@ function printAttribute(attr: ElementAttribute): Doc {
     const classLines = formatClassValue(attr.value);
     return concat([
       'class="',
-      hardline,
-      indent(join(hardline, classLines)),
+      indent(concat([hardline, join(hardline, classLines)])),
       hardline,
       '"',
     ]);
@@ -183,7 +181,7 @@ function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print
     bodyDocs.push(print(childPath as AstPath<Node>));
   }, 'program');
 
-  const body = bodyDocs.length > 0 ? concat([indent(concat([hardline, join(hardline, bodyDocs)])), hardline]) : '';
+  const body = bodyDocs.length > 0 ? concat([indent(concat([hardline, join(hardline, bodyDocs)])), hardline]) : hardline;
 
   let inverse: Doc = '';
   if (node.inverse.length > 0) {

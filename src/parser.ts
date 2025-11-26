@@ -350,45 +350,11 @@ function normalizeExpression(content: string): string {
 
 function tokenize(content: string): string[] {
   const tokens: string[] = [];
-  let current = '';
-  let inQuote: string | null = null;
+  const regex = /"[^"]*"|'[^']*'|\S+/g;
+  let match: RegExpExecArray | null;
 
-  for (let i = 0; i < content.length; i++) {
-    const char = content[i];
-    if (inQuote) {
-      if (char === inQuote) {
-        current += char;
-        tokens.push(current);
-        current = '';
-        inQuote = null;
-      } else {
-        current += char;
-      }
-      continue;
-    }
-
-    if (char === '"' || char === "'") {
-      if (current.length > 0) {
-        tokens.push(current);
-      }
-      current = char;
-      inQuote = char;
-      continue;
-    }
-
-    if (whitespace.test(char)) {
-      if (current.length > 0) {
-        tokens.push(current);
-        current = '';
-      }
-      continue;
-    }
-
-    current += char;
-  }
-
-  if (current.length > 0) {
-    tokens.push(current);
+  while ((match = regex.exec(content)) !== null) {
+    tokens.push(match[0]);
   }
 
   return tokens;
