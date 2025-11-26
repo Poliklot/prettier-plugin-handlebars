@@ -67,6 +67,7 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
       attributesDoc = concat([
         hardline,
         indent(join(hardline, attrsDocs)),
+        hardline,
       ]);
     } else {
       attributesDoc = concat([' ', attrsDocs[0]]);
