@@ -1,6 +1,6 @@
 import type { AstPath, Doc, ParserOptions, Printer } from 'prettier';
 import { builders } from 'prettier/doc';
-import { BlockStatement, ElementAttribute, ElementNode, HashPair, MustacheStatement, Node, PartialStatement, Program, TextNode } from './types';
+import { BlockStatement, ElementAttribute, ElementNode, HashPair, MustacheStatement, Node, PartialStatement, Program, TextNode, UnmatchedNode } from './types';
 
 const { hardline, join, group, indent, line, softline } = builders;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
@@ -65,6 +65,8 @@ export const printer: Printer<Node> = {
         return printPartial(node, options);
       case 'CommentStatement':
         return node.multiline ? formatMultilineComment(node.value) : concat(['{{! ', node.value, '}}']);
+      case 'UnmatchedNode':
+        return (node as UnmatchedNode).raw;
       default:
         return '';
     }

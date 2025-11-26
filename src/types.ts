@@ -5,7 +5,8 @@ export type Node =
   | MustacheStatement
   | BlockStatement
   | PartialStatement
-  | CommentStatement;
+  | CommentStatement
+  | UnmatchedNode;
 
 export interface Program {
   type: 'Program';
@@ -62,6 +63,11 @@ export interface CommentStatement {
   type: 'CommentStatement';
   value: string;
   multiline: boolean;
+}
+
+export interface UnmatchedNode {
+  type: 'UnmatchedNode';
+  raw: string;
 }
 
 export type ParseEndReason = 'blockEnd' | 'else' | 'tagClose' | null;
