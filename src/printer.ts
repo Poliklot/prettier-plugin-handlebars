@@ -6,7 +6,11 @@ const { hardline, join, group, indent, line, softline } = builders;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
 
 function docHasHardline(doc: Doc): boolean {
-  if (typeof doc === 'string' || typeof doc === 'number' || doc === null || doc === undefined) {
+  if (typeof doc === 'string') {
+    return doc.includes('\n');
+  }
+
+  if (typeof doc === 'number' || doc === null || doc === undefined) {
     return false;
   }
 
@@ -48,6 +52,10 @@ export const printer: Printer<Node> = {
       case 'ElementNode':
         return printElement(path as AstPath<ElementNode>, options, print);
       case 'TextNode':
+        if (node.verbatim) {
+          return formatVerbatimText(node.value);
+        }
+
         if (node.blankLines) {
           const maxEmptyLines = getMaxEmptyLines(options);
           const allowedBlankLines = Math.min(node.blankLines, maxEmptyLines);
@@ -79,6 +87,32 @@ export const printer: Printer<Node> = {
     }
   },
 };
+
+function formatVerbatimText(content: string): Doc {
+  const withoutLeadingNewline = content.startsWith('\n') ? content.slice(1) : content;
+  const withoutTrailingNewline = withoutLeadingNewline.endsWith('\n')
+    ? withoutLeadingNewline.slice(0, -1)
+    : withoutLeadingNewline;
+
+  const lines = withoutTrailingNewline.split('\n');
+  if (lines.length === 0) {
+    return '';
+  }
+
+  const commonIndent = lines.reduce((min, line) => {
+    if (line.trim() === '') return min;
+    const indentLength = (line.match(/^[ \t]*/) || [''])[0].length;
+    return Math.min(min, indentLength);
+  }, Number.MAX_SAFE_INTEGER);
+
+  const normalizedIndent = Number.isFinite(commonIndent) ? commonIndent : 0;
+  const normalizedLines = lines.map((line) => {
+    const indentLength = (line.match(/^[ \t]*/) || [''])[0].length;
+    return line.slice(Math.min(indentLength, normalizedIndent));
+  });
+
+  return join(hardline, normalizedLines);
+}
 
 function printProgram(path: AstPath<Program>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {
   const parts: Doc[] = [];

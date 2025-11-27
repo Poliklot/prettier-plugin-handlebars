@@ -30,6 +30,7 @@ export interface TextNode {
   type: 'TextNode';
   value: string;
   blankLines?: number;
+  verbatim?: boolean;
 }
 
 export interface HashPair {

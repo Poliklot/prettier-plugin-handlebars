@@ -24,6 +24,7 @@ const voidElements = new Set([
   'track',
   'wbr',
 ]);
+const rawTextElements = new Set(['script', 'style']);
 
 export function parse(text: string): Program {
   const { nodes } = parseChildren(text, 0, null, null);
@@ -33,6 +34,21 @@ export function parse(text: string): Program {
 function parseChildren(text: string, position: number, endTag: string | null, endBlock: string | null): ParseResult {
   const nodes: Node[] = [];
   let pos = position;
+
+  if (endTag && rawTextElements.has(endTag.toLowerCase())) {
+    const closeStart = text.indexOf(`</${endTag}`, pos);
+    const contentEnd = closeStart >= 0 ? closeStart : text.length;
+    const rawContent = text.slice(pos, contentEnd);
+
+    if (rawContent.length > 0) {
+      nodes.push({ type: 'TextNode', value: rawContent, verbatim: true } as TextNode);
+    }
+
+    const closeIdx = closeStart >= 0 ? text.indexOf('>', closeStart) : -1;
+    const nextPos = closeIdx >= 0 ? closeIdx + 1 : contentEnd;
+
+    return { nodes, position: nextPos, endReason: closeStart >= 0 ? 'tagClose' : null };
+  }
 
   while (pos < text.length) {
     if (endTag && text.startsWith(`</${endTag}`, pos)) {
