@@ -19,12 +19,10 @@ function docHasHardline(doc: Doc): boolean {
   }
 
   if (typeof doc === 'object' && 'contents' in doc) {
-    // @ts-expect-error - prettier Doc internals
     return docHasHardline((doc as { contents: Doc }).contents);
   }
 
   if (typeof doc === 'object' && 'parts' in doc) {
-    // @ts-expect-error - prettier Doc internals
     return docHasHardline((doc as { parts: Doc[] }).parts);
   }
 
@@ -144,8 +142,8 @@ function sortPlainAttributes(attributes: ElementAttribute[], options: ParserOpti
   const dataOrder = Array.isArray(preferredDataOrder) ? preferredDataOrder : [];
   const orderMap = new Map(dataOrder.map((name, index) => [name, index]));
 
-  const dataAttrs = others.filter((attr) => attr.name.startsWith('data-'));
   const nonDataAttrs = others.filter((attr) => !attr.name.startsWith('data-'));
+  const dataAttrs = others.filter((attr) => attr.name.startsWith('data-'));
 
   const sortedData = dataAttrs.slice().sort((a, b) => {
     const aRank = orderMap.has(a.name) ? (orderMap.get(a.name) as number) : Number.MAX_SAFE_INTEGER;
@@ -155,7 +153,7 @@ function sortPlainAttributes(attributes: ElementAttribute[], options: ParserOpti
     return attributes.indexOf(a) - attributes.indexOf(b);
   });
 
-  return ordered.concat(sortedData).concat(nonDataAttrs);
+  return ordered.concat(nonDataAttrs).concat(sortedData);
 }
 
 function buildAttributeDocs(attributes: ElementAttribute[]): Doc[] {
@@ -264,6 +262,17 @@ function printAttribute(attr: ElementAttribute): Doc {
     return concat([
       'class="',
       indent(concat([hardline, join(hardline, classLines)])),
+      hardline,
+      '"',
+    ]);
+  }
+
+  if (typeof attr.value === 'string' && attr.value.includes('\n')) {
+    const lines = formatMultilineAttributeValue(attr.value);
+    return concat([
+      attr.name,
+      '="',
+      indent(concat([hardline, join(hardline, lines)])),
       hardline,
       '"',
     ]);
@@ -439,5 +448,31 @@ function buildExpression(node: MustacheStatement | BlockStatement | PartialState
 
 function formatHash(pair: HashPair): string {
   return `${pair.key}=${pair.value}`;
+}
+
+function formatMultilineAttributeValue(value: string): Doc[] {
+  const lines = value.split('\n');
+
+  while (lines.length > 0 && lines[0].trim() === '') {
+    lines.shift();
+  }
+
+  while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+    lines.pop();
+  }
+
+  const commonIndent = lines.reduce((min, line) => {
+    if (line.trim() === '') return min;
+    const indentLength = (line.match(/^[ \t]*/) || [''])[0].length;
+    return Math.min(min, indentLength);
+  }, Number.MAX_SAFE_INTEGER);
+
+  const normalizedIndent = Number.isFinite(commonIndent) ? commonIndent : 0;
+
+  return lines.map((line) => {
+    const indentLength = (line.match(/^[ \t]*/) || [''])[0].length;
+    const trimmedLine = line.slice(Math.min(indentLength, normalizedIndent));
+    return trimmedLine.replace(/[ \t]+$/, '');
+  });
 }
 

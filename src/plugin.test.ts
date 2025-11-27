@@ -221,12 +221,12 @@ describe('line wrapping', () => {
 
     expect(output).toBe(`<a
   class="material-card__image-wrapper"
+  href="{{ href }}"
+  tabindex="-1"
   data-one="one"
   data-two="two"
   data-three="three"
   data-four="four"
-  href="{{ href }}"
-  tabindex="-1"
 ></a>
 `);
   });
@@ -240,6 +240,46 @@ describe('element children', () => {
     const output = await format(input);
 
     expect(output).toBe(`<a class=\"material-card__title-block\" href=\"{{ href }}\" tabindex=\"-1\">\n  <span class=\"material-card__title\">{{ name }}</span>\n</a>\n`);
+  });
+});
+
+describe('nested handlebars blocks and multiline attributes', () => {
+  it('normalizes indentation and avoids blank lines directly inside blocks', async () => {
+    const input = `<div>
+
+{{#if buttonHas}}
+
+{{#ifEquals titleButton "Оценить"}}
+<button
+	class="
+		button
+		button-primary-{{ colorButton }}
+	"
+	type="button"
+	data-hystmodal="#reviewModal"
+>
+	{{ titleButton }}
+</button>
+{{/ifEquals}}
+
+{{#ifEquals titleButton "Сделать обзор"}}
+<a
+	class="
+		button
+		button-primary-{{ colorButton }}
+	"
+	href="#"
+>
+	{{ titleButton }}
+</a>
+{{/ifEquals}}
+
+{{/if}}
+</div>`;
+
+    const output = await format(input);
+
+    expect(output).toBe(`<div>\n\n  {{#if buttonHas}}\n    {{#ifEquals titleButton \"Оценить\"}}\n      <button\n        class=\"\n          button\n          button-primary-{{ colorButton }}\n        \"\n        type=\"button\"\n        data-hystmodal=\"#reviewModal\"\n      >\n        {{ titleButton }}\n      </button>\n    {{/ifEquals}}\n\n    {{#ifEquals titleButton \"Сделать обзор\"}}\n      <a\n        class=\"\n          button\n          button-primary-{{ colorButton }}\n        \"\n        href=\"#\"\n      >\n        {{ titleButton }}\n      </a>\n    {{/ifEquals}}\n  {{/if}}\n</div>\n`);
   });
 });
 
