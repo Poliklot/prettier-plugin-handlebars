@@ -64,7 +64,16 @@ export const printer: Printer<Node> = {
       case 'PartialStatement':
         return printPartial(node, options);
       case 'CommentStatement':
-        return node.multiline ? formatMultilineComment(node.value) : concat(['{{! ', node.value, '}}']);
+        if (node.multiline) {
+          return formatMultilineComment(node.value);
+        }
+
+        if (node.block) {
+          const trimmedValue = typeof node.value === 'string' ? node.value.replace(/[ \t]+$/gm, '') : node.value;
+          return concat(['{{!-- ', trimmedValue, ' --}}']);
+        }
+
+        return concat(['{{! ', node.value, '}}']);
       case 'UnmatchedNode':
         return (node as UnmatchedNode).raw;
       default:

@@ -91,6 +91,12 @@ describe('comments', () => {
     const output = await format(input);
     expect(output).toBe('{{! short comment}}\n');
   });
+
+  it('keeps single-line block comments in block form', async () => {
+    const input = '{{!-- @backend Не трогай это --}}';
+    const output = await format(input);
+    expect(output).toBe('{{!-- @backend Не трогай это --}}\n');
+  });
 });
 
 describe('comments stability', () => {

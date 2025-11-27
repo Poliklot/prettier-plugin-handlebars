@@ -404,18 +404,20 @@ function createPartial(content: string): PartialStatement {
 }
 
 function createComment(content: string): CommentStatement {
+  const isBlockStyle = /^\s*!-{2}/.test(content);
   const withoutOpen = content.replace(/^[\t ]*!-{0,2}/, '');
   const withoutClosing = withoutOpen.replace(/-{2}\s*$/, '');
   let value = withoutClosing.startsWith('\n') ? withoutClosing : withoutClosing.replace(/^\s*/, '');
 
-  if (/\n/.test(value)) {
-    value = value.replace(/[ \t]+$/gm, '');
-  }
+  value = value.replace(/[ \t]+$/gm, '');
+
+  const isMultiline = /\n/.test(content);
 
   return {
     type: 'CommentStatement',
     value,
-    multiline: /\n/.test(content),
+    multiline: isMultiline,
+    block: isBlockStyle || isMultiline,
   };
 }
 
