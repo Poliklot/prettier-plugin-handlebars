@@ -185,6 +185,10 @@ function shouldBreakAttribute(attr: ElementAttribute): boolean {
     return true;
   }
 
+  if (typeof attr.value === 'string' && hasHandlebarsBlock(attr.value)) {
+    return true;
+  }
+
   if (typeof attr.value === 'string' && /\n/.test(attr.value)) {
     return true;
   }
@@ -262,6 +266,17 @@ function printAttribute(attr: ElementAttribute): Doc {
     return concat([
       'class="',
       indent(concat([hardline, join(hardline, classLines)])),
+      hardline,
+      '"',
+    ]);
+  }
+
+  if (typeof attr.value === 'string' && hasHandlebarsBlock(attr.value)) {
+    const lines = formatHandlebarsBlockValue(attr.value);
+    return concat([
+      attr.name,
+      '="',
+      indent(concat([hardline, join(hardline, lines)])),
       hardline,
       '"',
     ]);
@@ -474,5 +489,52 @@ function formatMultilineAttributeValue(value: string): Doc[] {
     const trimmedLine = line.slice(Math.min(indentLength, normalizedIndent));
     return trimmedLine.replace(/[ \t]+$/, '');
   });
+}
+
+function hasHandlebarsBlock(value: string): boolean {
+  return /{{[#/^]/.test(value) && /{{\//.test(value);
+}
+
+function formatHandlebarsBlockValue(value: string): Doc[] {
+  const tokens: string[] = [];
+  const mustacheRegex = /{{[^}]+}}/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = mustacheRegex.exec(value)) !== null) {
+    const before = value.slice(lastIndex, match.index).trim();
+    if (before) {
+      tokens.push(before);
+    }
+
+    tokens.push(match[0].trim());
+    lastIndex = match.index + match[0].length;
+  }
+
+  const remaining = value.slice(lastIndex).trim();
+  if (remaining) {
+    tokens.push(remaining);
+  }
+
+  const lines: Doc[] = [];
+  let depth = 0;
+
+  tokens.forEach((token) => {
+    const isClosing = token.startsWith('{{/');
+    const isElse = token.startsWith('{{else');
+    const isBlockOpen = token.startsWith('{{#') || token.startsWith('{{^');
+
+    if (isClosing || isElse) {
+      depth = Math.max(depth - 1, 0);
+    }
+
+    lines.push(indentWithDepth(token, depth));
+
+    if (isBlockOpen || isElse) {
+      depth += 1;
+    }
+  });
+
+  return lines;
 }
 
