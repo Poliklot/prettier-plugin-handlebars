@@ -157,13 +157,14 @@ function hasMatchingBlockEnd(text: string, token: MustacheToken, start: number):
 function parseBlock(text: string, token: MustacheToken): { node: BlockStatement; next: number } {
   const openInfo = parseExpression(token.content.slice(1));
   const { nodes: program, position: afterProgram, endReason } = parseChildren(text, token.end, null, openInfo.path);
+  const trimmedProgram = trimEdgeWhitespace(program);
 
   let inverse: Node[] = [];
   let finalPos = afterProgram;
 
   if (endReason === 'else') {
     const { nodes: inverseNodes, position: afterInverse } = parseChildren(text, afterProgram, null, openInfo.path);
-    inverse = inverseNodes;
+    inverse = trimEdgeWhitespace(inverseNodes);
     finalPos = afterInverse;
   }
 
@@ -178,7 +179,7 @@ function parseBlock(text: string, token: MustacheToken): { node: BlockStatement;
 
   const node: BlockStatement = {
     type: 'BlockStatement',
-    program,
+    program: trimmedProgram,
     inverse,
     rawOpen: token.content,
     ...expression,
@@ -189,6 +190,25 @@ function parseBlock(text: string, token: MustacheToken): { node: BlockStatement;
 
 function hasMatchingTagEnd(text: string, tag: string, start: number): boolean {
   return text.indexOf(`</${tag}`, start) !== -1;
+}
+
+function trimEdgeWhitespace(nodes: Node[]): Node[] {
+  let start = 0;
+  let end = nodes.length;
+
+  while (start < end && isWhitespaceOnlyText(nodes[start])) {
+    start += 1;
+  }
+
+  while (end > start && isWhitespaceOnlyText(nodes[end - 1])) {
+    end -= 1;
+  }
+
+  return nodes.slice(start, end);
+}
+
+function isWhitespaceOnlyText(node: Node): boolean {
+  return node.type === 'TextNode' && (node as TextNode).value === '';
 }
 
 function createUnmatchedNode(text: string, start: number, end: number): UnmatchedNode {
