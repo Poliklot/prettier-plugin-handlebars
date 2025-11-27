@@ -385,11 +385,40 @@ function formatMultilineComment(content: string): Doc {
   const needsLeadingSpace = !content.startsWith('\n');
   const needsTrailingSpace = !content.endsWith('\n');
 
+  const lines = content.split('\n');
+  const hasLeadingEmptyLine = lines[0] === '';
+  const hasTrailingEmptyLine = lines[lines.length - 1] === '';
+  const bodyLines = lines.slice(hasLeadingEmptyLine ? 1 : 0, hasTrailingEmptyLine ? -1 : undefined);
+
+  const commonIndent = bodyLines.reduce((min, line) => {
+    if (line.trim() === '') return min;
+    const indentLength = (line.match(/^[ \t]*/) || [''])[0].length;
+    return Math.min(min, indentLength);
+  }, Number.MAX_SAFE_INTEGER);
+
+  const normalizedIndent = Number.isFinite(commonIndent) ? Math.max(commonIndent - 1, 0) : 0;
+  const normalizedBody = bodyLines.map((line) => {
+    if (line.trim() === '') return '';
+    const indentLength = (line.match(/^[ \t]*/) || [''])[0].length;
+    const trimLength = Math.min(indentLength, normalizedIndent);
+    return line.slice(trimLength);
+  });
+
+  const normalizedLines = [...normalizedBody];
+  while (normalizedLines[0] === '') {
+    normalizedLines.shift();
+  }
+  while (normalizedLines[normalizedLines.length - 1] === '') {
+    normalizedLines.pop();
+  }
+
+  const body = join(hardline, normalizedLines);
+
   return concat([
     '{{!--',
-    needsLeadingSpace ? ' ' : '',
-    content,
-    needsTrailingSpace ? ' ' : '',
+    needsLeadingSpace ? ' ' : hardline,
+    body,
+    needsTrailingSpace ? ' ' : hardline,
     '--}}',
   ]);
 }

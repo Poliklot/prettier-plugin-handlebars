@@ -117,6 +117,19 @@ describe('comments stability', () => {
   });
 });
 
+describe('multiline comment indentation', () => {
+  it('normalizes inner indentation while respecting surrounding depth', async () => {
+    const input = `\t\t\t\t{{!--\n\t\t\t\t\t\t@name Слайдер с отзывами\n\n\t\t\t\t\t\timgLoading: "eager" | "lazy";\n\n\t\t\t\t\t\titems: ProductDetailCommentData[];\n\t\t\t\t--}}\n<section class="slider-section slider-section--customer-review section" data-component="slider-customer-review">\n\t<link rel="stylesheet" href="@views/components/blocks/product-detail-comment/product-detail-comment.scss" />\n\t<link rel="stylesheet" href="@styles/comments.scss" />\n\n\t<div class="container">\n\t{{!--\n\t\t@backend\n\n\t\tНе пропусти тут момент\n\t--}}\n\t\t<div class="slider-section__header">\n\t\t</div>\n\t</div>\n</section>`;
+
+    const output = await format(input);
+
+    expect(output).toMatch(
+      /^{{!--\n\t@name Слайдер с отзывами\n\n\timgLoading: "eager" \| "lazy";\n\n\titems: ProductDetailCommentData\[];\n--}}/m,
+    );
+    expect(output).toMatch(/\n\s*{{!--\n\s*@backend\n\n\s*Не пропусти тут момент\n\s*--}}/m);
+  });
+});
+
 describe('unmatched structures', () => {
   it('does not synthesize closing tags for incomplete blocks', async () => {
     const input = `{{#if (or categoryName countView)}}\n  {{! comment}}\n  <div class="material-card__info">`;
