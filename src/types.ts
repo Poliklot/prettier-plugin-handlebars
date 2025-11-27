@@ -63,6 +63,7 @@ export interface CommentStatement {
   type: 'CommentStatement';
   value: string;
   multiline: boolean;
+  block: boolean;
 }
 
 export interface UnmatchedNode {
