@@ -85,6 +85,30 @@ describe('mustache spacing', () => {
   });
 });
 
+describe('handlebars block attribute values', () => {
+  it('expands block structures inside attribute values to separate lines', async () => {
+    const input = `<input
+  class="info-share-banner__referral"
+  type="text"
+  name="referal-code"
+  readonly=""
+  value="{{#if auth}}{{codeText}}{{else}}XxxxxXX00XX{{/if}} "
+  {{#if auth}}
+    onfocus="this.select();"
+  {{/if}}
+/>`;
+
+    const output = await format(input);
+
+    expect(output).toBe(`<input
+  class=\"info-share-banner__referral\"
+  type=\"text\"
+  name=\"referal-code\"
+  readonly=\"\"
+  value=\"\n    {{#if auth}}\n      {{codeText}}\n    {{else}}\n      XxxxxXX00XX\n    {{/if}}\n  \"\n  {{#if auth}}\n    onfocus=\"this.select();\"\n  {{/if}}\n/>\n`);
+  });
+});
+
 describe('comments', () => {
   it('preserves comments', async () => {
     const input = '{{! short comment}}';
