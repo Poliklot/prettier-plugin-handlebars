@@ -4,22 +4,22 @@ import { printer } from './printer';
 export const languages = [
   {
     name: 'HandlebarsCustom',
-    parsers: ['handlebars-custom'],
+    parsers: ['handlebars'],
     extensions: ['.hbs'],
   },
 ];
 
 export const parsers = {
-  'handlebars-custom': {
+  'handlebars': {
     parse,
-    astFormat: 'handlebars-custom-ast',
+    astFormat: 'handlebars-ast',
     locStart: () => 0,
     locEnd: () => 0,
   },
 };
 
 export const printers = {
-  'handlebars-custom-ast': printer,
+  'handlebars-ast': printer,
 };
 
 export const options = {

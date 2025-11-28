@@ -4,7 +4,7 @@ import * as plugin from './plugin';
 
 async function format(source: string, overrides: prettier.Options = {}) {
   return prettier.format(source, {
-    parser: 'handlebars-custom',
+    parser: 'handlebars',
     plugins: [plugin as never],
     printWidth: 80,
     ...overrides,
