@@ -157,6 +157,37 @@ describe('comments stability', () => {
   });
 });
 
+describe('prettier ignore', () => {
+  it('skips formatting for the next node after an ignore comment', async () => {
+    const input = "{{!-- prettier-ignore --}}\n" +
+      "<a   href=\"{{ href }}\"  class=\"material-card__image-wrapper\" tabindex=\"-1\">\n" +
+      "    <img alt=\"{{ name }}\" title=\"{{ name }}\"   class=\"material-card__image\" />\n" +
+      "</a>";
+
+    const output = await format(input);
+
+    expect(output).toBe(`${input}\n`);
+  });
+
+  it('ignores block content without affecting surrounding nodes', async () => {
+    const input = "<div>\n" +
+      "  {{!-- prettier-ignore --}}\n" +
+      "  <span  data-test=\"example\">  uneven spacing </span>\n" +
+      "  <p>  Normalized paragraph  </p>\n" +
+      "</div>";
+
+    const output = await format(input);
+
+      expect(output).toBe(
+        "<div>\n" +
+          "  {{!-- prettier-ignore --}}\n" +
+          "  <span  data-test=\"example\">  uneven spacing </span>\n" +
+          "  <p>Normalized paragraph</p>\n" +
+          "</div>\n",
+      );
+  });
+});
+
 describe('raw text elements', () => {
   it('trims trailing empty lines inside script and style blocks', async () => {
     const input = `<style>
