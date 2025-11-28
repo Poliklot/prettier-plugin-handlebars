@@ -182,6 +182,11 @@ function sortPlainAttributes(attributes: ElementAttribute[], options: ParserOpti
 
   const preferredDataOrder: string[] = (options as Record<string, unknown>).dataAttributeOrder as string[];
   const dataOrder = Array.isArray(preferredDataOrder) ? preferredDataOrder : [];
+
+  if (dataOrder.length === 0) {
+    return ordered.concat(others);
+  }
+
   const orderMap = new Map(dataOrder.map((name, index) => [name, index]));
 
   const nonDataAttrs = others.filter((attr) => !attr.name.startsWith('data-'));

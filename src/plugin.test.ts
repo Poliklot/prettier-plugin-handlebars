@@ -17,6 +17,12 @@ describe('attribute ordering', () => {
     const output = await format(input);
     expect(output).toBe("<div id=\"main\" class=\"c\" data-attr></div>\n");
   });
+
+  it('preserves data-* position when no custom order is provided', async () => {
+    const input = '<a class="link" data-track="open" href="/home"></a>';
+    const output = await format(input);
+    expect(output).toBe('<a class="link" data-track="open" href="/home"></a>\n');
+  });
 });
 
 describe('partials', () => {
@@ -418,12 +424,12 @@ describe('line wrapping', () => {
 
     expect(output).toBe(`<a
   class="material-card__image-wrapper"
-  href="{{ href }}"
-  tabindex="-1"
   data-one="one"
   data-two="two"
   data-three="three"
   data-four="four"
+  href="{{ href }}"
+  tabindex="-1"
 ></a>
 `);
   });
