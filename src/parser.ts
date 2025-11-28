@@ -482,11 +482,39 @@ function normalizeExpression(content: string): string {
 
 function tokenize(content: string): string[] {
   const tokens: string[] = [];
-  const regex = /"[^"]*"|'[^']*'|\S+/g;
-  let match: RegExpExecArray | null;
+  let current = '';
+  let quote: '"' | "'" | null = null;
 
-  while ((match = regex.exec(content)) !== null) {
-    tokens.push(match[0]);
+  for (let i = 0; i < content.length; i += 1) {
+    const char = content[i];
+
+    if (quote) {
+      current += char;
+      if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      current += char;
+      quote = char;
+      continue;
+    }
+
+    if (whitespace.test(char)) {
+      if (current) {
+        tokens.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current) {
+    tokens.push(current);
   }
 
   return tokens;

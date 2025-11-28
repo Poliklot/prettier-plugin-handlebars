@@ -397,6 +397,26 @@ function printMustache(node: MustacheStatement): Doc {
   const content = buildExpression(node);
   const open = node.triple ? '{{{' : '{{';
   const close = node.triple ? '}}}' : '}}';
+
+  const shouldMultiline = node.hash.length > 0 && node.hash.length + node.params.length > 1;
+
+  if (shouldMultiline) {
+    const paramsDocs: Doc[] = [];
+    node.params.forEach((param) => paramsDocs.push(param));
+    node.hash.forEach((pair) => paramsDocs.push(formatHash(pair)));
+
+    return group(
+      concat([
+        open,
+        ' ',
+        node.path,
+        indent(concat([hardline, join(hardline, paramsDocs)])),
+        hardline,
+        close,
+      ]),
+    );
+  }
+
   const spacing = content.length > 0 ? ' ' : '';
   return concat([open, spacing, content, spacing, close]);
 }
