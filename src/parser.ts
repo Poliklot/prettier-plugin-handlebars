@@ -356,10 +356,13 @@ interface MustacheToken {
 
 function parseMustacheToken(text: string, position: number): MustacheToken {
   const triple = text.startsWith('{{{', position);
+  const openLength = triple ? 3 : 2;
+  const isBlockComment = text.startsWith('{{!--', position) || text.startsWith('{{{!--', position);
   const close = triple ? '}}}' : '}}';
-  const closeIdx = text.indexOf(close, position + (triple ? 3 : 2));
-  const end = closeIdx >= 0 ? closeIdx + close.length : text.length;
-  const rawContent = text.slice(position + (triple ? 3 : 2), closeIdx >= 0 ? closeIdx : undefined);
+  const closeDelimiter = isBlockComment ? `--${close}` : close;
+  const closeIdx = text.indexOf(closeDelimiter, position + openLength);
+  const end = closeIdx >= 0 ? closeIdx + closeDelimiter.length : text.length;
+  const rawContent = text.slice(position + openLength, closeIdx >= 0 ? closeIdx : undefined);
   const inner = rawContent.trim();
 
   if (inner.startsWith('!')) {
