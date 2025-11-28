@@ -250,6 +250,8 @@ function shouldBreakAttribute(attr: ElementAttribute): boolean {
 function printElement(path: AstPath<ElementNode>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {
   const node = path.getValue();
   const sortedAttributes = sortAttributes(node.attributes, options);
+  const parentNode = path.getParentNode();
+  const grandParentNode = path.getParentNode(1);
 
   const openTag = concat(['<', node.tag]);
   let attributesDoc: Doc = '';
@@ -286,13 +288,17 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
   const closeDoc = concat(['</', node.tag, '>']);
 
   const singleChild = node.children.length === 1 ? node.children[0] : null;
+  const singleChildIsMustache = singleChild?.type === 'MustacheStatement';
+  const mustacheInsideBlock =
+    singleChildIsMustache && [parentNode, grandParentNode].some((ancestor) => ancestor?.type === 'BlockStatement');
   const canInline =
     node.children.length === 1 &&
     childrenDocs.length === 1 &&
     singleChild?.type !== 'ElementNode' &&
     !docHasHardline(openDoc) &&
     !docHasHardline(childrenDocs[0]) &&
-    !docHasHardline(closeDoc);
+    !docHasHardline(closeDoc) &&
+    !mustacheInsideBlock;
 
   if (canInline) {
     return concat([openDoc, childrenDocs[0], closeDoc]);

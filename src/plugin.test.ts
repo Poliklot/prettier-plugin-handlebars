@@ -479,6 +479,16 @@ describe('element children', () => {
 
     expect(output).toBe(`<a class=\"material-card__title-block\" href=\"{{ href }}\" tabindex=\"-1\">\n  <span class=\"material-card__title\">{{ name }}</span>\n</a>\n`);
   });
+
+  it('avoids inlining single mustache children inside block programs', async () => {
+    const input = `{{#if weight}}
+  <li class="product-card-to-cart__price-description-item only-mobile">{{ weight }}</li>
+{{/if}}`;
+
+    const output = await format(input);
+
+    expect(output).toBe(`{{#if weight}}\n  <li class=\"product-card-to-cart__price-description-item only-mobile\">\n    {{ weight }}\n  </li>\n{{/if}}\n`);
+  });
 });
 
 describe('raw text elements', () => {
