@@ -60,15 +60,29 @@ function parseChildren(text: string, position: number, endTag: string | null, en
     if (text.startsWith('{{', pos)) {
       const token = parseMustacheToken(text, pos);
 
-      if (token.kind === 'comment' && isPrettierIgnoreComment(token.rawContent)) {
-        const ignoreStart = pos;
-        const afterComment = token.end;
-        const ignoredEnd = consumeNextNode(text, afterComment);
-        const finalIgnoredEnd = ignoredEnd > afterComment ? ignoredEnd : text.length;
+      if (token.kind === 'comment') {
+        const ignoreDirective = getPrettierIgnoreDirective(token.rawContent);
 
-        nodes.push(createUnmatchedNode(text, ignoreStart, finalIgnoredEnd));
-        pos = finalIgnoredEnd;
-        continue;
+        if (ignoreDirective === 'start') {
+          const ignoreStart = pos;
+          const ignoreEnd = findPrettierIgnoreEnd(text, token.end);
+          const finalIgnoredEnd = ignoreEnd ?? text.length;
+
+          nodes.push(createUnmatchedNode(text, ignoreStart, finalIgnoredEnd));
+          pos = finalIgnoredEnd;
+          continue;
+        }
+
+        if (ignoreDirective === 'next' || ignoreDirective === 'attribute') {
+          const ignoreStart = pos;
+          const afterComment = token.end;
+          const ignoredEnd = consumeNextNode(text, afterComment);
+          const finalIgnoredEnd = ignoredEnd > afterComment ? ignoredEnd : text.length;
+
+          nodes.push(createUnmatchedNode(text, ignoreStart, finalIgnoredEnd));
+          pos = finalIgnoredEnd;
+          continue;
+        }
       }
 
       if (endBlock && token.kind === 'blockEnd' && token.name === endBlock) {
@@ -238,8 +252,51 @@ function isWhitespaceOnlyText(node: Node): boolean {
   return node.type === 'TextNode' && (node as TextNode).value === '';
 }
 
-function isPrettierIgnoreComment(rawContent: string): boolean {
-  return /prettier-ignore/i.test(rawContent);
+type PrettierIgnoreDirective = 'next' | 'start' | 'end' | 'attribute' | null;
+
+function getPrettierIgnoreDirective(rawContent: string): PrettierIgnoreDirective {
+  const normalized = rawContent.toLowerCase();
+
+  if (normalized.includes('prettier-ignore-start')) {
+    return 'start';
+  }
+
+  if (normalized.includes('prettier-ignore-end')) {
+    return 'end';
+  }
+
+  if (normalized.includes('prettier-ignore-attribute')) {
+    return 'attribute';
+  }
+
+  if (normalized.includes('prettier-ignore')) {
+    return 'next';
+  }
+
+  return null;
+}
+
+function findPrettierIgnoreEnd(text: string, position: number): number | null {
+  let pos = position;
+
+  while (pos < text.length) {
+    const next = text.indexOf('{{', pos);
+
+    if (next === -1) {
+      return null;
+    }
+
+    const token = parseMustacheToken(text, next);
+    const directive = getPrettierIgnoreDirective(token.rawContent);
+
+    if (token.kind === 'comment' && directive === 'end') {
+      return token.end;
+    }
+
+    pos = token.end > next ? token.end : next + 2;
+  }
+
+  return null;
 }
 
 function consumeNextNode(text: string, position: number): number {
