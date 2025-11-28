@@ -60,6 +60,17 @@ function parseChildren(text: string, position: number, endTag: string | null, en
     if (text.startsWith('{{', pos)) {
       const token = parseMustacheToken(text, pos);
 
+      if (token.kind === 'comment' && isPrettierIgnoreComment(token.rawContent)) {
+        const ignoreStart = pos;
+        const afterComment = token.end;
+        const ignoredEnd = consumeNextNode(text, afterComment);
+        const finalIgnoredEnd = ignoredEnd > afterComment ? ignoredEnd : text.length;
+
+        nodes.push(createUnmatchedNode(text, ignoreStart, finalIgnoredEnd));
+        pos = finalIgnoredEnd;
+        continue;
+      }
+
       if (endBlock && token.kind === 'blockEnd' && token.name === endBlock) {
         return { nodes, position: token.end, endReason: 'blockEnd' };
       }
@@ -225,6 +236,50 @@ function trimEdgeWhitespace(nodes: Node[]): Node[] {
 
 function isWhitespaceOnlyText(node: Node): boolean {
   return node.type === 'TextNode' && (node as TextNode).value === '';
+}
+
+function isPrettierIgnoreComment(rawContent: string): boolean {
+  return /prettier-ignore/i.test(rawContent);
+}
+
+function consumeNextNode(text: string, position: number): number {
+  if (position >= text.length) {
+    return position;
+  }
+
+  if (text.startsWith('{{', position)) {
+    const token = parseMustacheToken(text, position);
+
+    if (token.kind === 'blockStart') {
+      const { next } = parseBlock(text, token);
+      return next;
+    }
+
+    return token.end;
+  }
+
+  if (text[position] === '<') {
+    const tagResult = parseTag(text, position);
+
+    if (tagResult.kind === 'open') {
+      const { position: afterChildren } = parseChildren(text, tagResult.end, tagResult.tag, null);
+      return afterChildren;
+    }
+
+    return tagResult.end;
+  }
+
+  const nextMarkup = findNextMarkup(text, position);
+
+  if (nextMarkup <= position) {
+    return nextMarkup;
+  }
+
+  if (nextMarkup >= text.length) {
+    return text.length;
+  }
+
+  return consumeNextNode(text, nextMarkup);
 }
 
 function createUnmatchedNode(text: string, start: number, end: number): UnmatchedNode {
