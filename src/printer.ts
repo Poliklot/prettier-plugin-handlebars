@@ -286,12 +286,12 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
 
   const singleChild = node.children.length === 1 ? node.children[0] : null;
   const canInline =
+    node.children.length === 1 &&
     childrenDocs.length === 1 &&
     singleChild?.type !== 'ElementNode' &&
     !docHasHardline(openDoc) &&
     !docHasHardline(childrenDocs[0]) &&
-    !docHasHardline(closeDoc) &&
-    getInlineContentLength(singleChild) <= 25;
+    !docHasHardline(closeDoc);
 
   if (canInline) {
     return concat([openDoc, childrenDocs[0], closeDoc]);
@@ -603,34 +603,5 @@ function formatHandlebarsBlockValue(value: string): Doc[] {
   });
 
   return lines;
-}
-
-function getInlineContentLength(node: Node | null): number {
-  if (!node) {
-    return Number.MAX_SAFE_INTEGER;
-  }
-
-  switch (node.type) {
-    case 'TextNode':
-      return node.value.length;
-    case 'MustacheStatement': {
-      const contentLength = buildExpression(node).length;
-      const surrounding = node.triple ? 6 : 4;
-      const spaces = contentLength > 0 ? 2 : 0;
-      return surrounding + spaces + contentLength;
-    }
-    case 'PartialStatement': {
-      let length = 4 + node.path.length; // "{{> " + path
-      node.params.forEach((param) => {
-        length += 1 + param.length;
-      });
-      node.hash.forEach((pair) => {
-        length += 1 + formatHash(pair).length;
-      });
-      return length + 2; // closing braces
-    }
-    default:
-      return Number.MAX_SAFE_INTEGER;
-  }
 }
 

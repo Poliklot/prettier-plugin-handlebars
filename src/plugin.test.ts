@@ -143,6 +143,18 @@ describe('comments', () => {
     const output = await format(input);
     expect(output).toBe('{{!-- @backend Не трогай это --}}\n');
   });
+
+  it('keeps inline block comments intact when they contain mustaches', async () => {
+    const input = `<div class="card-banner" data-product-id="{{ id }}" data-type-component="product-card-banner">
+  {{#if priceDiff}}
+    {{!-- <span class="card-banner__discount">-{{ priceDiff }} ₽</span> --}}
+  {{/if}}
+</div>`;
+
+    const output = await format(input, { printWidth: 120 });
+
+    expect(output).toBe(`<div class=\"card-banner\" data-product-id=\"{{ id }}\" data-type-component=\"product-card-banner\">\n  {{#if priceDiff}}\n    {{!-- <span class=\"card-banner__discount\">-{{ priceDiff }} ₽</span> --}}\n  {{/if}}\n</div>\n`);
+  });
 });
 
 describe('comments stability', () => {
@@ -330,6 +342,28 @@ describe('unmatched structures', () => {
     const output = await format(input);
 
     expect(output).toBe(`<div class=\"material-card__info\">\nText\n`);
+  });
+});
+
+describe('inline child elements', () => {
+  it('keeps a single long text node inline', async () => {
+    const input =
+      '<span class="card-banner__discount">Достаточно длинный текст без подстановок, который всё ещё помещается в строку</span>';
+    const output = await format(input, { printWidth: 120 });
+
+    expect(output).toBe(
+      '<span class=\"card-banner__discount\">Достаточно длинный текст без подстановок, который всё ещё помещается в строку</span>\n',
+    );
+  });
+
+  it('breaks to multiple lines when there are several child nodes', async () => {
+    const input =
+      '<span class="card-banner__discount">Это довольно длинный текст с суммой {{ amount }} ₽ за единицу товара</span>';
+    const output = await format(input, { printWidth: 120 });
+
+    expect(output).toBe(
+      `<span class=\"card-banner__discount\">\n  Это довольно длинный текст с суммой\n  {{ amount }}\n  ₽ за единицу товара\n</span>\n`,
+    );
   });
 });
 
