@@ -44,7 +44,7 @@ describe('class with condition', () => {
     const input = "<div class=\"some{{#if other}} other{{/if}}\"></div>";
     const output = await format(input);
     expect(output).toBe(
-      "<div\n  class=\"\n    some\n    {{#if other}}\n      other\n    {{/if}}\n  \"></div>\n",
+      "<div\n  class=\"\n    some\n    {{#if other}}\n      other\n    {{/if}}\n  \"\n></div>\n",
     );
   });
 });
@@ -127,7 +127,7 @@ describe('handlebars block attribute values', () => {
   type=\"text\"
   name=\"referal-code\"
   readonly=\"\"
-  value=\"\n    {{#if auth}}\n      {{codeText}}\n    {{else}}\n      XxxxxXX00XX\n    {{/if}}\n  \"\n  {{#if auth}}\n    onfocus=\"this.select();\"\n  {{/if}}/>\n`);
+  value=\"\n    {{#if auth}}\n      {{codeText}}\n    {{else}}\n      XxxxxXX00XX\n    {{/if}}\n  \"\n  {{#if auth}}\n    onfocus=\"this.select();\"\n  {{/if}}\n/>\n`);
   });
 });
 
@@ -443,7 +443,8 @@ describe('handlebars attribute blocks', () => {
     {{#ifEquals imgLoading 'eager'}}
       src="{{ imgSrc }}"
       loading="eager"
-    {{/ifEquals}}/>
+    {{/ifEquals}}
+  />
 </a>
 `);
   });
@@ -477,6 +478,16 @@ describe('element children', () => {
     const output = await format(input);
 
     expect(output).toBe(`<a class=\"material-card__title-block\" href=\"{{ href }}\" tabindex=\"-1\">\n  <span class=\"material-card__title\">{{ name }}</span>\n</a>\n`);
+  });
+
+  it('avoids inlining single mustache children inside block programs', async () => {
+    const input = `{{#if weight}}
+  <li class="product-card-to-cart__price-description-item only-mobile">{{ weight }}</li>
+{{/if}}`;
+
+    const output = await format(input);
+
+    expect(output).toBe(`{{#if weight}}\n  <li class=\"product-card-to-cart__price-description-item only-mobile\">\n    {{ weight }}\n  </li>\n{{/if}}\n`);
   });
 });
 
@@ -552,7 +563,8 @@ describe('nested handlebars blocks and multiline attributes', () => {
           button-primary-{{ colorButton }}
         \"
         type=\"button\"
-        data-hystmodal=\"#reviewModal\">
+        data-hystmodal=\"#reviewModal\"
+      >
         {{ titleButton }}
       </button>
     {{/ifEquals}}
@@ -563,7 +575,8 @@ describe('nested handlebars blocks and multiline attributes', () => {
           button
           button-primary-{{ colorButton }}
         \"
-        href=\"#\">
+        href=\"#\"
+      >
         {{ titleButton }}
       </a>
     {{/ifEquals}}
