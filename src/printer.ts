@@ -256,7 +256,6 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
     if (breakAttrs) {
       attributesDoc = concat([
         indent(concat([hardline, join(hardline, attrsDocs)])),
-        hardline,
       ]);
     } else {
       attributesDoc = concat([
