@@ -267,6 +267,32 @@ describe('element children', () => {
   });
 });
 
+describe('raw text elements', () => {
+  it('preserves multiline script content instead of collapsing it inline', async () => {
+    const input = `<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('ready');
+  });
+</script>`;
+
+    const output = await format(input);
+
+    expect(output).toBe(`<script>\n  document.addEventListener('DOMContentLoaded', () => {\n    console.log('ready');\n  });\n</script>\n`);
+  });
+
+  it('keeps style blocks formatted across multiple lines', async () => {
+    const input = `<style>
+  .banner {
+    display: none;
+  }
+</style>`;
+
+    const output = await format(input);
+
+    expect(output).toBe(`<style>\n  .banner {\n    display: none;\n  }\n</style>\n`);
+  });
+});
+
 describe('nested handlebars blocks and multiline attributes', () => {
   it('normalizes indentation and avoids blank lines directly inside blocks', async () => {
     const input = `<div>
