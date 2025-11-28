@@ -186,6 +186,71 @@ describe('prettier ignore', () => {
           "</div>\n",
       );
   });
+
+  it('ignores everything between prettier-ignore-start and prettier-ignore-end', async () => {
+    const input =
+      "{{!-- prettier-ignore-start --}}\n" +
+      "<!doctype html>\n" +
+      "<html lang=\"ru\">\n" +
+      "\t<body\n" +
+      "\t\t{{#if bodyClass}}\n" +
+      "\t\t\tclass=\"{{ bodyClass }}\"\n" +
+      "\t\t{{/if}}\n" +
+      "\t>\n" +
+      "\t\t<div\n" +
+      "\t\t\tclass=\"\n" +
+      "\t\t\t\twrapper\n" +
+      "\t\t\t\t{{#if wrapperClass}}\n" +
+      "\t\t\t\t\t{{wrapperClass}}\n" +
+      "\t\t\t\t{{/if}}\n" +
+      "\t\t\t\"\n" +
+      "\t\t>\n" +
+      "{{!-- prettier-ignore-end --}}";
+
+    const output = await format(input);
+
+    expect(output).toBe(`${input}\n`);
+  });
+
+  it('ignores following markup when comment is written as short form', async () => {
+    const input =
+      "{{! prettier-ignore }}\n" +
+      "<!doctype html>\n" +
+      "<html lang=\"ru\">\n" +
+      "\t<body\n" +
+      "\t\t{{#if bodyClass}}\n" +
+      "\t\t\tclass=\"{{ bodyClass }}\"\n" +
+      "\t\t{{/if}}\n" +
+      "\t>\n" +
+      "\t\t<div\n" +
+      "\t\t\tclass=\"\n" +
+      "\t\t\t\twrapper\n" +
+      "\t\t\t\t{{#if wrapperClass}}\n" +
+      "\t\t\t\t\t{{wrapperClass}}\n" +
+      "\t\t\t\t{{/if}}\n" +
+      "\t\t\t\"\n" +
+      "\t\t>\n" +
+      "\t\t</div>\n" +
+      "\t</body>\n" +
+      "</html>";
+
+    const output = await format(input);
+
+    expect(output).toBe(`${input}\n`);
+  });
+
+  it('ignores next node when using prettier-ignore-attribute', async () => {
+    const input =
+      "<div>\n" +
+      "  {{!-- prettier-ignore-attribute --}}\n" +
+      "  <span   class=\"  foo   bar\" data-id=\"1\">\n" +
+      "  </span>\n" +
+      "</div>";
+
+    const output = await format(input);
+
+    expect(output).toBe(`${input}\n`);
+  });
 });
 
 describe('raw text elements', () => {
