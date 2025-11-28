@@ -334,6 +334,23 @@ describe('void elements', () => {
     const output = await format(input);
     expect(output).toBe(`<source media=\"(min-width:1440px)\" srcset=\"@img/pic.avif\" type=\"image/avif\" />\n`);
   });
+
+  it('avoids leading whitespace before the self-closing slash on its own line', async () => {
+    const input = `<source
+  media="(min-width: 650px)"
+  srcset="@img/certificates/background/background.webp"
+  type="image/webp"
+/>`;
+
+    const output = await format(input);
+
+    expect(output).toBe(`<source
+  media=\"(min-width: 650px)\"
+  srcset=\"@img/certificates/background/background.webp\"
+  type=\"image/webp\"
+/>
+`);
+  });
 });
 
 describe('data attribute ordering', () => {
