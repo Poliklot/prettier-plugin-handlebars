@@ -38,7 +38,7 @@ describe('class with condition', () => {
     const input = "<div class=\"some{{#if other}} other{{/if}}\"></div>";
     const output = await format(input);
     expect(output).toBe(
-      "<div\n  class=\"\n    some\n    {{#if other}}\n      other\n    {{/if}}\n  \"\n></div>\n",
+      "<div\n  class=\"\n    some\n    {{#if other}}\n      other\n    {{/if}}\n  \"></div>\n",
     );
   });
 });
@@ -121,7 +121,7 @@ describe('handlebars block attribute values', () => {
   type=\"text\"
   name=\"referal-code\"
   readonly=\"\"
-  value=\"\n    {{#if auth}}\n      {{codeText}}\n    {{else}}\n      XxxxxXX00XX\n    {{/if}}\n  \"\n  {{#if auth}}\n    onfocus=\"this.select();\"\n  {{/if}}\n/>\n`);
+  value=\"\n    {{#if auth}}\n      {{codeText}}\n    {{else}}\n      XxxxxXX00XX\n    {{/if}}\n  \"\n  {{#if auth}}\n    onfocus=\"this.select();\"\n  {{/if}}/>\n`);
   });
 });
 
@@ -403,8 +403,7 @@ describe('handlebars attribute blocks', () => {
     {{#ifEquals imgLoading 'eager'}}
       src="{{ imgSrc }}"
       loading="eager"
-    {{/ifEquals}}
-  />
+    {{/ifEquals}}/>
 </a>
 `);
   });
@@ -503,7 +502,34 @@ describe('nested handlebars blocks and multiline attributes', () => {
 
     const output = await format(input);
 
-    expect(output).toBe(`<div>\n\n  {{#if buttonHas}}\n    {{#ifEquals titleButton \"Оценить\"}}\n      <button\n        class=\"\n          button\n          button-primary-{{ colorButton }}\n        \"\n        type=\"button\"\n        data-hystmodal=\"#reviewModal\"\n      >\n        {{ titleButton }}\n      </button>\n    {{/ifEquals}}\n\n    {{#ifEquals titleButton \"Сделать обзор\"}}\n      <a\n        class=\"\n          button\n          button-primary-{{ colorButton }}\n        \"\n        href=\"#\"\n      >\n        {{ titleButton }}\n      </a>\n    {{/ifEquals}}\n  {{/if}}\n</div>\n`);
+    expect(output).toBe(`<div>
+
+  {{#if buttonHas}}
+    {{#ifEquals titleButton \"Оценить\"}}
+      <button
+        class=\"
+          button
+          button-primary-{{ colorButton }}
+        \"
+        type=\"button\"
+        data-hystmodal=\"#reviewModal\">
+        {{ titleButton }}
+      </button>
+    {{/ifEquals}}
+
+    {{#ifEquals titleButton \"Сделать обзор\"}}
+      <a
+        class=\"
+          button
+          button-primary-{{ colorButton }}
+        \"
+        href=\"#\">
+        {{ titleButton }}
+      </a>
+    {{/ifEquals}}
+  {{/if}}
+</div>
+`);
   });
 });
 
