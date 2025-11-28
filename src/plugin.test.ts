@@ -125,30 +125,75 @@ describe('comments', () => {
 
 describe('comments stability', () => {
   it('keeps multiline content untouched', async () => {
-    const input = `{{!--\n\t@name Example\n\n\tprop: string;\n--}}`;
+    const input = `{{!--\n	@name Example\n\n	prop: string;\n--}}`;
     const first = await format(input);
     const second = await format(first);
-    expect(first).toBe(`{{!--\n\t@name Example\n\n\tprop: string;\n--}}\n`);
+    expect(first).toBe(`{{!--\n	@name Example\n\n	prop: string;\n--}}\n`);
     expect(second).toBe(first);
   });
 
   it('trims trailing whitespace before closing dashes', async () => {
-    const input = `{{!--\n\t@name Example\n\n\tprop: string;\n --}}`;
+    const input = `{{!--\n	@name Example\n\n	prop: string;\n --}}`;
     const first = await format(input);
     const second = await format(first);
-    expect(first).toBe(`{{!--\n\t@name Example\n\n\tprop: string;\n--}}\n`);
+    expect(first).toBe(`{{!--\n	@name Example\n\n	prop: string;\n--}}\n`);
     expect(second).toBe(first);
+  });
+});
+
+describe('raw text elements', () => {
+  it('trims trailing empty lines inside script and style blocks', async () => {
+    const input = `<style>
+		:root {
+			--var-color: #fff;
+		}
+
+		body {
+			background-color: red;
+		}
+	</style>
+<script>
+	document.addEventListener('DOMContentLoaded', () => {
+		document.body.querySelectorAll('.info-share-banner .info-share-banner__referral')?.forEach(($input) => {
+			$input.setAttribute('size', String($input.value.length + 5));
+		});
+	});
+</script>`;
+
+    const expected = `<style>
+	:root {
+		--var-color: #fff;
+	}
+
+	body {
+		background-color: red;
+	}
+</style>
+<script>
+	document.addEventListener('DOMContentLoaded', () => {
+		document.body.querySelectorAll('.info-share-banner .info-share-banner__referral')?.forEach(($input) => {
+			$input.setAttribute('size', String($input.value.length + 5));
+		});
+	});
+</script>
+`;
+
+    const firstPass = await format(input, { tabWidth: 2, useTabs: true });
+    expect(firstPass).toBe(expected);
+
+    const secondPass = await format(firstPass, { tabWidth: 2, useTabs: true });
+    expect(secondPass).toBe(expected);
   });
 });
 
 describe('multiline comment indentation', () => {
   it('normalizes inner indentation while respecting surrounding depth', async () => {
-    const input = `\t\t\t\t{{!--\n\t\t\t\t\t\t@name Слайдер с отзывами\n\n\t\t\t\t\t\timgLoading: "eager" | "lazy";\n\n\t\t\t\t\t\titems: ProductDetailCommentData[];\n\t\t\t\t--}}\n<section class="slider-section slider-section--customer-review section" data-component="slider-customer-review">\n\t<link rel="stylesheet" href="@views/components/blocks/product-detail-comment/product-detail-comment.scss" />\n\t<link rel="stylesheet" href="@styles/comments.scss" />\n\n\t<div class="container">\n\t{{!--\n\t\t@backend\n\n\t\tНе пропусти тут момент\n\t--}}\n\t\t<div class="slider-section__header">\n\t\t</div>\n\t</div>\n</section>`;
+    const input = `				{{!--\n						@name Слайдер с отзывами\n\n						imgLoading: "eager" | "lazy";\n\n						items: ProductDetailCommentData[];\n				--}}\n<section class="slider-section slider-section--customer-review section" data-component="slider-customer-review">\n	<link rel="stylesheet" href="@views/components/blocks/product-detail-comment/product-detail-comment.scss" />\n	<link rel="stylesheet" href="@styles/comments.scss" />\n\n	<div class="container">\n	{{!--\n		@backend\n\n		Не пропусти тут момент\n	--}}\n		<div class="slider-section__header">\n		</div>\n	</div>\n</section>`;
 
     const output = await format(input);
 
     expect(output).toMatch(
-      /^{{!--\n\t@name Слайдер с отзывами\n\n\timgLoading: "eager" \| "lazy";\n\n\titems: ProductDetailCommentData\[];\n--}}/m,
+      /^{{!--\n	@name Слайдер с отзывами\n\n	imgLoading: "eager" \| "lazy";\n\n	items: ProductDetailCommentData\[];\n--}}/m,
     );
     expect(output).toMatch(/\n\s*{{!--\n\s*@backend\n\n\s*Не пропусти тут момент\n\s*--}}/m);
   });

@@ -95,10 +95,6 @@ function formatVerbatimText(content: string): Doc {
     : withoutLeadingNewline;
 
   const lines = withoutTrailingNewline.split('\n');
-  if (lines.length === 0) {
-    return '';
-  }
-
   const commonIndent = lines.reduce((min, line) => {
     if (line.trim() === '') return min;
     const indentLength = (line.match(/^[ \t]*/) || [''])[0].length;
@@ -106,10 +102,22 @@ function formatVerbatimText(content: string): Doc {
   }, Number.MAX_SAFE_INTEGER);
 
   const normalizedIndent = Number.isFinite(commonIndent) ? commonIndent : 0;
-  const normalizedLines = lines.map((line) => {
+  let normalizedLines = lines.map((line) => {
     const indentLength = (line.match(/^[ \t]*/) || [''])[0].length;
     return line.slice(Math.min(indentLength, normalizedIndent));
   });
+
+  while (normalizedLines.length > 0 && normalizedLines[0].trim() === '') {
+    normalizedLines = normalizedLines.slice(1);
+  }
+
+  while (normalizedLines.length > 0 && normalizedLines[normalizedLines.length - 1].trim() === '') {
+    normalizedLines = normalizedLines.slice(0, -1);
+  }
+
+  if (normalizedLines.length === 0) {
+    return '';
+  }
 
   return join(hardline, normalizedLines);
 }
