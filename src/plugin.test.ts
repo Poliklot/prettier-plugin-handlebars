@@ -85,6 +85,22 @@ describe('mustache spacing', () => {
   });
 });
 
+describe('helpers with hash pairs', () => {
+  it('prints multiple hash pairs on separate lines', async () => {
+    const input = `{{assign
+  headTitle="Padel Stars | Страница не найдена"
+  headDescription="Ошибка 404"
+}}`;
+
+    const output = await format(input);
+
+    expect(output).toBe(`{{ assign
+  headTitle="Padel Stars | Страница не найдена"
+  headDescription="Ошибка 404"
+}}\n`);
+  });
+});
+
 describe('handlebars block attribute values', () => {
   it('expands block structures inside attribute values to separate lines', async () => {
     const input = `<input
