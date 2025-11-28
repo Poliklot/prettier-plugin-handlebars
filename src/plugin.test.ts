@@ -44,7 +44,7 @@ describe('class with condition', () => {
     const input = "<div class=\"some{{#if other}} other{{/if}}\"></div>";
     const output = await format(input);
     expect(output).toBe(
-      "<div\n  class=\"\n    some\n    {{#if other}}\n      other\n    {{/if}}\n  \"></div>\n",
+      "<div\n  class=\"\n    some\n    {{#if other}}\n      other\n    {{/if}}\n  \"\n></div>\n",
     );
   });
 });
@@ -127,7 +127,7 @@ describe('handlebars block attribute values', () => {
   type=\"text\"
   name=\"referal-code\"
   readonly=\"\"
-  value=\"\n    {{#if auth}}\n      {{codeText}}\n    {{else}}\n      XxxxxXX00XX\n    {{/if}}\n  \"\n  {{#if auth}}\n    onfocus=\"this.select();\"\n  {{/if}}/>\n`);
+  value=\"\n    {{#if auth}}\n      {{codeText}}\n    {{else}}\n      XxxxxXX00XX\n    {{/if}}\n  \"\n  {{#if auth}}\n    onfocus=\"this.select();\"\n  {{/if}}\n/>\n`);
   });
 });
 
@@ -443,7 +443,8 @@ describe('handlebars attribute blocks', () => {
     {{#ifEquals imgLoading 'eager'}}
       src="{{ imgSrc }}"
       loading="eager"
-    {{/ifEquals}}/>
+    {{/ifEquals}}
+  />
 </a>
 `);
   });
@@ -552,7 +553,8 @@ describe('nested handlebars blocks and multiline attributes', () => {
           button-primary-{{ colorButton }}
         \"
         type=\"button\"
-        data-hystmodal=\"#reviewModal\">
+        data-hystmodal=\"#reviewModal\"
+      >
         {{ titleButton }}
       </button>
     {{/ifEquals}}
@@ -563,7 +565,8 @@ describe('nested handlebars blocks and multiline attributes', () => {
           button
           button-primary-{{ colorButton }}
         \"
-        href=\"#\">
+        href=\"#\"
+      >
         {{ titleButton }}
       </a>
     {{/ifEquals}}
