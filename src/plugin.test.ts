@@ -780,6 +780,7 @@ describe('handlebars attribute blocks', () => {
 });
 
 describe('line wrapping', () => {
+  it.todo('wraps long attribute lists to new lines when exceeding print width');
   // it('wraps long attribute lists to new lines when exceeding print width', async () => {
   //   const input =
   //     '<a class="gallery__image-wrapper" data-attribute="one" data-attribute-1="two" data-attribute-2="three" data-attribute-3="four" href="{{ href }}" tabindex="-1"></a>';
