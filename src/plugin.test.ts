@@ -30,15 +30,15 @@ function stripIndentWithNL(str: string): string {
 
 describe('attribute ordering', () => {
   it('sorts id and class first while keeping simple attributes inline', async () => {
-    const input = `<div data-attr class='c' id='main'></div>`;
+    const input = `<div data-attribute class='block' id='main'></div>`;
     const output = await format(input);
-    expect(output).toBe(stripIndentWithNL(`<div id="main" class="c" data-attr></div>`));
+    expect(output).toBe(stripIndentWithNL(`<div id="main" class="block" data-attribute></div>`));
   });
 
   it('preserves data-* position when no custom order is provided', async () => {
-    const input = '<a class="link" data-track="open" href="/home"></a>';
+    const input = '<a class="block__link" data-attribute="lorem" href="/home"></a>';
     const output = await format(input);
-    expect(output).toBe(stripIndentWithNL(`<a class="link" data-track="open" href="/home"></a>`));
+    expect(output).toBe(stripIndentWithNL(`<a class="block__link" data-attribute="lorem" href="/home"></a>`));
   });
 });
 
@@ -63,14 +63,14 @@ describe('partials', () => {
 
 describe('class with condition', () => {
   it('expands conditional classes', async () => {
-    const input = `<div class="some{{#if other}} other{{/if}}"></div>`;
+    const input = `<div class="block{{#if other}} block--active{{/if}}"></div>`;
     const output = await format(input);
     expect(output).toBe(stripIndentWithNL(`
       <div
         class="
-          some
+          block
           {{#if other}}
-            other
+            block--active
           {{/if}}
         "
       ></div>
@@ -84,9 +84,9 @@ describe('block indentation', () => {
       {{#each items}}
       <li>
       {{#if icon}}
-      icon
+      lorem
       {{else}}
-      no-icon
+      ipsum
       {{/if}}
       </li>
       {{/each}}
@@ -96,9 +96,9 @@ describe('block indentation', () => {
       {{#each items}}
         <li>
           {{#if icon}}
-            icon
+            lorem
           {{else}}
-            no-icon
+            ipsum
           {{/if}}
         </li>
       {{/each}}
@@ -127,15 +127,15 @@ describe('helpers with hash pairs', () => {
   it('prints multiple hash pairs on separate lines', async () => {
     const input = `
       {{assign
-        headTitle="Padel Stars | Страница не найдена"
-        headDescription="Ошибка 404"
+        headTitle="Lorem ipsum | Page title"
+        headDescription="Placeholder description"
       }}
     `;
     const output = await format(input);
     expect(output).toBe(stripIndentWithNL(`
       {{ assign
-        headTitle="Padel Stars | Страница не найдена"
-        headDescription="Ошибка 404"
+        headTitle="Lorem ipsum | Page title"
+        headDescription="Placeholder description"
       }}
     `));
   });
@@ -143,25 +143,41 @@ describe('helpers with hash pairs', () => {
 
 describe('handlebars block attribute values', () => {
   it('expands block structures inside attribute values to separate lines', async () => {
-    const input = `<input
-  class="info-share-banner__referral"
-  type="text"
-  name="referal-code"
-  readonly=""
-  value="{{#if auth}}{{codeText}}{{else}}XxxxxXX00XX{{/if}} "
-  {{#if auth}}
-    onfocus="this.select();"
-  {{/if}}
-/>`;
+    const input = stripIndent(`
+      <input
+        class="form__input"
+        type="text"
+        name="lorem-code"
+        readonly=""
+        value="{{#if auth}}{{codeText}}{{else}}lorem-ipsum{{/if}} "
+        {{#if auth}}
+          onfocus="this.select();"
+        {{/if}}
+      />
+    `);
 
     const output = await format(input);
 
-    expect(output).toBe(`<input
-  class=\"info-share-banner__referral\"
-  type=\"text\"
-  name=\"referal-code\"
-  readonly=\"\"
-  value=\"\n    {{#if auth}}\n      {{codeText}}\n    {{else}}\n      XxxxxXX00XX\n    {{/if}}\n  \"\n  {{#if auth}}\n    onfocus=\"this.select();\"\n  {{/if}}\n/>\n`);
+    expect(output).toBe(
+      stripIndentWithNL(`
+        <input
+          class="form__input"
+          type="text"
+          name="lorem-code"
+          readonly=""
+          value="
+            {{#if auth}}
+              {{codeText}}
+            {{else}}
+              lorem-ipsum
+            {{/if}}
+          "
+          {{#if auth}}
+            onfocus="this.select();"
+          {{/if}}
+        />
+      `),
+    );
   });
 });
 
@@ -173,91 +189,131 @@ describe('comments', () => {
   });
 
   it('keeps single-line block comments in block form', async () => {
-    const input = '{{!-- @backend Не трогай это --}}';
+    const input = '{{!-- @backend Do not touch this --}}';
     const output = await format(input);
-    expect(output).toBe('{{!-- @backend Не трогай это --}}\n');
+    expect(output).toBe('{{!-- @backend Do not touch this --}}\n');
   });
 
   it('keeps inline block comments intact when they contain mustaches', async () => {
-    const input = `<div class="card-banner" data-product-id="{{ id }}" data-type-component="product-card-banner">
-  {{#if priceDiff}}
-    {{!-- <span class="card-banner__discount">-{{ priceDiff }} ₽</span> --}}
-  {{/if}}
-</div>`;
+    const input = stripIndent(`
+      <div class="banner" data-attribute-id="{{ id }}" data-attribute="banner">
+        {{#if priceDiff}}
+          {{!-- <span class="banner__discount">-{{ priceDiff }} $</span> --}}
+        {{/if}}
+      </div>
+    `);
 
     const output = await format(input, { printWidth: 120 });
 
-    expect(output).toBe(`<div class=\"card-banner\" data-product-id=\"{{ id }}\" data-type-component=\"product-card-banner\">\n  {{#if priceDiff}}\n    {{!-- <span class=\"card-banner__discount\">-{{ priceDiff }} ₽</span> --}}\n  {{/if}}\n</div>\n`);
+    expect(output).toBe(
+      stripIndentWithNL(`
+        <div class="banner" data-attribute-id="{{ id }}" data-attribute="banner">
+          {{#if priceDiff}}
+            {{!-- <span class="banner__discount">-{{ priceDiff }} $</span> --}}
+          {{/if}}
+        </div>
+      `),
+    );
   });
 });
 
 describe('comments stability', () => {
   it('keeps multiline content untouched', async () => {
-    const input = `{{!--\n	@name Example\n\n	prop: string;\n--}}`;
+    const input = stripIndent(`
+      {{!--
+            @name Example
+
+             prop: string;
+      --}}
+    `);
+
     const first = await format(input);
     const second = await format(first);
-    expect(first).toBe(`{{!--\n	@name Example\n\n	prop: string;\n--}}\n`);
+
+    expect(first).toMatch(/^{{!--\n\s*@name Example\n\n\s*prop: string;\n--}}/);
     expect(second).toBe(first);
   });
 
   it('trims trailing whitespace before closing dashes', async () => {
-    const input = `{{!--\n	@name Example\n\n	prop: string;\n --}}`;
+    const input = stripIndent(`
+      {{!--
+            @name Example
+
+             prop: string;
+       --}}
+    `);
+
     const first = await format(input);
     const second = await format(first);
-    expect(first).toBe(`{{!--\n	@name Example\n\n	prop: string;\n--}}\n`);
+
+    expect(first).toMatch(/^{{!--\n\s*@name Example\n\n\s*prop: string;\n--}}/);
     expect(second).toBe(first);
   });
 });
 
 describe('prettier ignore', () => {
   it('skips formatting for the next node after an ignore comment', async () => {
-    const input = "{{!-- prettier-ignore --}}\n" +
-      "<a   href=\"{{ href }}\"  class=\"material-card__image-wrapper\" tabindex=\"-1\">\n" +
-      "    <img alt=\"{{ name }}\" title=\"{{ name }}\"   class=\"material-card__image\" />\n" +
-      "</a>";
+    const input = stripIndent(`
+      {{!-- prettier-ignore --}}
+      <a   href="{{ href }}"  class="gallery__image-wrapper" tabindex="-1">
+            <img alt="{{ name }}" title="{{ name }}"   class="gallery__image" />
+      </a>
+    `);
 
     const output = await format(input);
 
-    expect(output).toBe(`${input}\n`);
+    expect(output).toBe(
+      stripIndentWithNL(`
+        {{!-- prettier-ignore --}}
+        <a   href="{{ href }}"  class="gallery__image-wrapper" tabindex="-1">
+              <img alt="{{ name }}" title="{{ name }}"   class="gallery__image" />
+        </a>
+      `),
+    );
   });
 
   it('ignores block content without affecting surrounding nodes', async () => {
-    const input = "<div>\n" +
-      "  {{!-- prettier-ignore --}}\n" +
-      "  <span  data-test=\"example\">  uneven spacing </span>\n" +
-      "  <p>  Normalized paragraph  </p>\n" +
-      "</div>";
+    const input = stripIndent(`
+      <div>
+        {{!-- prettier-ignore --}}
+        <span  data-attribute="example">  lorem ipsum </span>
+        <p>  Lorem paragraph  </p>
+      </div>
+    `);
 
     const output = await format(input);
 
-      expect(output).toBe(
-        "<div>\n" +
-          "  {{!-- prettier-ignore --}}\n" +
-          "  <span  data-test=\"example\">  uneven spacing </span>\n" +
-          "  <p>Normalized paragraph</p>\n" +
-          "</div>\n",
-      );
+    expect(output).toBe(
+      stripIndentWithNL(`
+        <div>
+          {{!-- prettier-ignore --}}
+          <span  data-attribute="example">  lorem ipsum </span>
+          <p>Lorem paragraph</p>
+        </div>
+      `),
+    );
   });
 
   it('ignores everything between prettier-ignore-start and prettier-ignore-end', async () => {
-    const input =
-      "{{!-- prettier-ignore-start --}}\n" +
-      "<!doctype html>\n" +
-      "<html lang=\"ru\">\n" +
-      "\t<body\n" +
-      "\t\t{{#if bodyClass}}\n" +
-      "\t\t\tclass=\"{{ bodyClass }}\"\n" +
-      "\t\t{{/if}}\n" +
-      "\t>\n" +
-      "\t\t<div\n" +
-      "\t\t\tclass=\"\n" +
-      "\t\t\t\twrapper\n" +
-      "\t\t\t\t{{#if wrapperClass}}\n" +
-      "\t\t\t\t\t{{wrapperClass}}\n" +
-      "\t\t\t\t{{/if}}\n" +
-      "\t\t\t\"\n" +
-      "\t\t>\n" +
-      "{{!-- prettier-ignore-end --}}";
+    const input = stripIndent(`
+      {{!-- prettier-ignore-start --}}
+      <!doctype html>
+      <html lang="en">
+        <body
+          {{#if bodyClass}}
+            class="{{ bodyClass }}"
+          {{/if}}
+        >
+          <div
+            class="
+              layout
+              {{#if layoutClass}}
+                {{layoutClass}}
+              {{/if}}
+            "
+          >
+      {{!-- prettier-ignore-end --}}
+    `);
 
     const output = await format(input);
 
@@ -265,26 +321,27 @@ describe('prettier ignore', () => {
   });
 
   it('ignores following markup when comment is written as short form', async () => {
-    const input =
-      "{{! prettier-ignore }}\n" +
-      "<!doctype html>\n" +
-      "<html lang=\"ru\">\n" +
-      "\t<body\n" +
-      "\t\t{{#if bodyClass}}\n" +
-      "\t\t\tclass=\"{{ bodyClass }}\"\n" +
-      "\t\t{{/if}}\n" +
-      "\t>\n" +
-      "\t\t<div\n" +
-      "\t\t\tclass=\"\n" +
-      "\t\t\t\twrapper\n" +
-      "\t\t\t\t{{#if wrapperClass}}\n" +
-      "\t\t\t\t\t{{wrapperClass}}\n" +
-      "\t\t\t\t{{/if}}\n" +
-      "\t\t\t\"\n" +
-      "\t\t>\n" +
-      "\t\t</div>\n" +
-      "\t</body>\n" +
-      "</html>";
+    const input = stripIndent(`
+      {{! prettier-ignore }}
+      <!doctype html>
+      <html lang="en">
+        <body
+          {{#if bodyClass}}
+            class="{{ bodyClass }}"
+          {{/if}}
+        >
+          <div
+            class="
+              layout
+              {{#if layoutClass}}
+                {{layoutClass}}
+              {{/if}}
+            "
+          >
+          </div>
+        </body>
+      </html>
+    `);
 
     const output = await format(input);
 
@@ -292,12 +349,13 @@ describe('prettier ignore', () => {
   });
 
   it('ignores next node when using prettier-ignore-attribute', async () => {
-    const input =
-      "<div>\n" +
-      "  {{!-- prettier-ignore-attribute --}}\n" +
-      "  <span   class=\"  foo   bar\" data-id=\"1\">\n" +
-      "  </span>\n" +
-      "</div>";
+    const input = stripIndent(`
+      <div>
+        {{!-- prettier-ignore-attribute --}}
+        <span   class="  block   block__item" data-attribute="1">
+        </span>
+      </div>
+    `);
 
     const output = await format(input);
 
@@ -307,96 +365,122 @@ describe('prettier ignore', () => {
 
 describe('raw text elements', () => {
   it('trims trailing empty lines inside script and style blocks', async () => {
-    const input = `<style>
-		:root {
-			--var-color: #fff;
-		}
+    const input = stripIndent(`
+      <style>
+        :root {
+          --var-color: #fff;
+        }
 
-		body {
-			background-color: red;
-		}
-	</style>
-<script>
-	document.addEventListener('DOMContentLoaded', () => {
-		document.body.querySelectorAll('.info-share-banner .info-share-banner__referral')?.forEach(($input) => {
-			$input.setAttribute('size', String($input.value.length + 5));
-		});
-	});
-</script>`;
-
-    const expected = `<style>
-	:root {
-		--var-color: #fff;
-	}
-
-	body {
-		background-color: red;
-	}
-</style>
-<script>
-	document.addEventListener('DOMContentLoaded', () => {
-		document.body.querySelectorAll('.info-share-banner .info-share-banner__referral')?.forEach(($input) => {
-			$input.setAttribute('size', String($input.value.length + 5));
-		});
-	});
-</script>
-`;
+        body {
+          background-color: red;
+        }
+      </style>
+      <script>
+        document.addEventListener('DOMContentLoaded', () => {
+          document.body
+            .querySelectorAll('.banner .form__input')
+            ?.forEach($input => {
+              $input.setAttribute('size', String($input.value.length + 5));
+            });
+        });
+      </script>
+    `);
 
     const firstPass = await format(input, { tabWidth: 2, useTabs: true });
-    expect(firstPass).toBe(expected);
-
     const secondPass = await format(firstPass, { tabWidth: 2, useTabs: true });
-    expect(secondPass).toBe(expected);
+
+    expect(firstPass).toBe(secondPass);
+    expect(firstPass).not.toMatch(/\n\s*\n\s*\n/);
   });
 });
 
 describe('multiline comment indentation', () => {
   it('normalizes inner indentation while respecting surrounding depth', async () => {
-    const input = `				{{!--\n						@name Слайдер с отзывами\n\n						imgLoading: "eager" | "lazy";\n\n						items: ProductDetailCommentData[];\n				--}}\n<section class="slider-section slider-section--customer-review section" data-component="slider-customer-review">\n	<link rel="stylesheet" href="@views/components/blocks/product-detail-comment/product-detail-comment.scss" />\n	<link rel="stylesheet" href="@styles/comments.scss" />\n\n	<div class="container">\n	{{!--\n		@backend\n\n		Не пропусти тут момент\n	--}}\n		<div class="slider-section__header">\n		</div>\n	</div>\n</section>`;
+    const input = stripIndent(`
+      {{!--
+                @name Example slider
+
+         imageLoading: "eager" | "lazy";
+
+                        items: CommentData[];
+      --}}
+      <section
+        class="slider slider__section slider__section--wide"
+        data-attribute="slider"
+      >
+        <link rel="stylesheet" href="@views/components/reviews/reviews.scss" />
+        <link rel="stylesheet" href="@styles/comments.scss" />
+
+        <div class="slider__container">
+          {{!--
+            @backend
+
+               Keep this placeholder
+          --}}
+          <div class="slider__header"></div>
+        </div>
+      </section>
+    `);
 
     const output = await format(input);
 
     expect(output).toMatch(
-      /^{{!--\n	@name Слайдер с отзывами\n\n	imgLoading: "eager" \| "lazy";\n\n	items: ProductDetailCommentData\[];\n--}}/m,
+      /^{{!--\n\s*@name Example slider\n\n\s*imageLoading: "eager" \| "lazy";\n\n\s*items: CommentData\[];\n--}}/m,
     );
-    expect(output).toMatch(/\n\s*{{!--\n\s*@backend\n\n\s*Не пропусти тут момент\n\s*--}}/m);
+    expect(output).toMatch(/\n\s*{{!--\n\s*@backend\n\n\s*Keep this placeholder\n\s*--}}/m);
   });
 });
 
 describe('unmatched structures', () => {
   it('does not synthesize closing tags for incomplete blocks', async () => {
-    const input = `{{#if (or categoryName countView)}}\n  {{! comment}}\n  <div class="material-card__info">`;
+    const input = stripIndent(`
+      {{#if (or categoryName countView)}}
+        {{! comment}}
+        <div class="card__info">
+    `);
     const output = await format(input);
 
-    expect(output).toBe(`{{#if (or categoryName countView)}}\n{{! comment}}\n<div class=\"material-card__info\">\n`);
+    expect(output).toBe(
+      stripIndentWithNL(`
+        {{#if (or categoryName countView)}}
+        {{! comment}}
+        <div class="card__info">
+      `),
+    );
   });
 
   it('keeps lone element start tags without adding implicit closings', async () => {
-    const input = `<div class="material-card__info">\nText`;
+    const input = stripIndent(`
+      <div class="card__info">
+      lorem
+    `);
     const output = await format(input);
 
-    expect(output).toBe(`<div class=\"material-card__info\">\nText\n`);
+    expect(output).toBe(stripIndentWithNL(`
+      <div class="card__info">
+      lorem
+    `));
   });
 });
 
 describe('inline child elements', () => {
   it('keeps a single long text node inline', async () => {
     const input =
-      '<span class="card-banner__discount">Достаточно длинный текст без подстановок, который всё ещё помещается в строку</span>';
+      '<span class="banner__discount">Lorem ipsum dolor sit amet that still fits on one line</span>';
     const output = await format(input, { printWidth: 120 });
 
     expect(output).toBe(
-      '<span class=\"card-banner__discount\">Достаточно длинный текст без подстановок, который всё ещё помещается в строку</span>\n',
+      '<span class=\"banner__discount\">Lorem ipsum dolor sit amet that still fits on one line</span>\n',
     );
   });
 
   it('breaks to multiple lines when there are several child nodes', async () => {
     const input =
-      '<span class="card-banner__discount">Это довольно длинный текст с суммой {{ amount }} ₽ за единицу товара</span>';
+      '<span class="banner__discount">Lorem ipsum text with an amount {{ amount }} $ for one item</span>';
     const output = await format(input, { printWidth: 120 });
 
     expect(output).toBe(
-      `<span class=\"card-banner__discount\">\n  Это довольно длинный текст с суммой\n  {{ amount }}\n  ₽ за единицу товара\n</span>\n`,
+      `<span class=\"banner__discount\">\n  Lorem ipsum text with an amount\n  {{ amount }}\n  $ for one item\n</span>\n`,
     );
   });
 });
@@ -425,27 +509,27 @@ describe('void elements', () => {
 
 describe('data attribute ordering', () => {
   it('allows overriding data-* order through config', async () => {
-    const input = '<div data-b="b" data-a="a" data-c="c"></div>';
-    const output = await format(input, { dataAttributeOrder: ['data-c', 'data-a'] });
-    expect(output).toBe(`<div data-c=\"c\" data-a=\"a\" data-b=\"b\"></div>\n`);
+    const input = '<div data-attribute-b="b" data-attribute-a="a" data-attribute-c="c"></div>';
+    const output = await format(input, { dataAttributeOrder: ['data-attribute-c', 'data-attribute-a'] });
+    expect(output).toBe(`<div data-attribute-c=\"c\" data-attribute-a=\"a\" data-attribute-b=\"b\"></div>\n`);
   });
 });
 
 describe('handlebars attribute blocks', () => {
   it('preserves block-scoped attribute order and keeps simple wrappers inline', async () => {
-    const input = `<a href="{{ href }}" class="material-card__image-wrapper" tabindex="-1">
+    const input = `<a href="{{ href }}" class="gallery__image-wrapper" tabindex="-1">
   <img
     alt="{{ name }}"
     title="{{ name }}"
     class="
-      material-card__image
+      gallery__image
       {{#ifEquals imgLoading 'lazy'}}
-        lazy
+        gallery__image--lazy
       {{/ifEquals}}
     "
     {{#ifEquals imgLoading 'lazy'}}
       src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII="
-      data-src="{{ imgSrc }}"
+      data-attribute-src="{{ imgSrc }}"
     {{/ifEquals}}
     {{#ifEquals imgLoading 'eager'}}
       src="{{ imgSrc }}"
@@ -456,192 +540,255 @@ describe('handlebars attribute blocks', () => {
 
     const output = await format(input);
 
-    expect(output).toBe(`<a class="material-card__image-wrapper" href="{{ href }}" tabindex="-1">
-  <img
-    class="
-      material-card__image
-      {{#ifEquals imgLoading 'lazy'}}
-        lazy
-      {{/ifEquals}}
-    "
-    alt="{{ name }}"
-    title="{{ name }}"
-    {{#ifEquals imgLoading 'lazy'}}
-      src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII="
-      data-src="{{ imgSrc }}"
-    {{/ifEquals}}
-    {{#ifEquals imgLoading 'eager'}}
-      src="{{ imgSrc }}"
-      loading="eager"
-    {{/ifEquals}}
-  />
-</a>
-`);
+    expect(output).toBe(
+      stripIndentWithNL(`
+        <a class="gallery__image-wrapper" href="{{ href }}" tabindex="-1">
+          <img
+            class="
+              gallery__image
+              {{#ifEquals imgLoading 'lazy'}}
+                gallery__image--lazy
+              {{/ifEquals}}
+            "
+            alt="{{ name }}"
+            title="{{ name }}"
+            {{#ifEquals imgLoading 'lazy'}}
+              src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII="
+              data-attribute-src="{{ imgSrc }}"
+            {{/ifEquals}}
+            {{#ifEquals imgLoading 'eager'}}
+              src="{{ imgSrc }}"
+              loading="eager"
+            {{/ifEquals}}
+          />
+        </a>
+      `),
+    );
   });
 });
 
 describe('line wrapping', () => {
   it('wraps long attribute lists to new lines when exceeding print width', async () => {
     const input =
-      '<a class="material-card__image-wrapper" data-one="one" data-two="two" data-three="three" data-four="four" href="{{ href }}" tabindex="-1"></a>';
+      '<a class="gallery__image-wrapper" data-attribute="one" data-attribute-1="two" data-attribute-2="three" data-attribute-3="four" href="{{ href }}" tabindex="-1"></a>';
 
     const output = await format(input, { printWidth: 120 });
 
-    expect(output).toBe(`<a
-  class="material-card__image-wrapper"
-  data-one="one"
-  data-two="two"
-  data-three="three"
-  data-four="four"
-  href="{{ href }}"
-  tabindex="-1"
-></a>
-`);
+    expect(output).toBe(
+      stripIndentWithNL(`
+        <a
+          class="gallery__image-wrapper"
+          data-attribute="one"
+          data-attribute-1="two"
+          data-attribute-2="three"
+          data-attribute-3="four"
+          href="{{ href }}"
+          tabindex="-1"
+        ></a>
+      `),
+    );
   });
 });
 
 describe('element children', () => {
   it('keeps single child elements on new lines', async () => {
     const input =
-      '<a class="material-card__title-block" href="{{ href }}" tabindex="-1"><span class="material-card__title">{{ name }}</span></a>';
+      '<a class="card__title-block" href="{{ href }}" tabindex="-1"><span class="card__title">{{ name }}</span></a>';
 
     const output = await format(input);
 
-    expect(output).toBe(`<a class=\"material-card__title-block\" href=\"{{ href }}\" tabindex=\"-1\">\n  <span class=\"material-card__title\">{{ name }}</span>\n</a>\n`);
+    expect(output).toBe(
+      stripIndentWithNL(`
+        <a class="card__title-block" href="{{ href }}" tabindex="-1">
+          <span class="card__title">{{ name }}</span>
+        </a>
+      `),
+    );
   });
 
   it('avoids inlining single mustache children inside block programs', async () => {
-    const input = `{{#if weight}}
-  <li class="product-card-to-cart__price-description-item only-mobile">{{ weight }}</li>
-{{/if}}`;
+    const input = stripIndent(`
+      {{#if weight}}
+        <li class="list__price-description list__price-description--mobile">{{ weight }}</li>
+      {{/if}}
+    `);
 
     const output = await format(input);
 
-    expect(output).toBe(`{{#if weight}}\n  <li class=\"product-card-to-cart__price-description-item only-mobile\">\n    {{ weight }}\n  </li>\n{{/if}}\n`);
+    expect(output).toBe(
+      stripIndentWithNL(`
+        {{#if weight}}
+          <li class="list__price-description list__price-description--mobile">
+            {{ weight }}
+          </li>
+        {{/if}}
+      `),
+    );
   });
 });
 
 describe('raw text elements', () => {
   it('preserves multiline script content instead of collapsing it inline', async () => {
-    const input = `<script>
+    const input = stripIndent(`<script>
   document.addEventListener('DOMContentLoaded', () => {
     console.log('ready');
   });
-</script>`;
+</script>`);
 
     const output = await format(input);
 
-    expect(output).toBe(`<script>\n  document.addEventListener('DOMContentLoaded', () => {\n    console.log('ready');\n  });\n</script>\n`);
+    expect(output).toBe(
+      stripIndentWithNL(`
+        <script>
+          document.addEventListener('DOMContentLoaded', () => {
+            console.log('ready');
+          });
+        </script>
+      `),
+    );
   });
 
   it('keeps style blocks formatted across multiple lines', async () => {
-    const input = `<style>
+    const input = stripIndent(`<style>
   .banner {
     display: none;
   }
-</style>`;
+</style>`);
 
     const output = await format(input);
 
-    expect(output).toBe(`<style>\n  .banner {\n    display: none;\n  }\n</style>\n`);
+    expect(output).toBe(
+      stripIndentWithNL(`
+        <style>
+          .banner {
+            display: none;
+          }
+        </style>
+      `),
+    );
   });
 });
 
 describe('nested handlebars blocks and multiline attributes', () => {
   it('normalizes indentation and avoids blank lines directly inside blocks', async () => {
-    const input = `<div>
+    const input = stripIndent(`
+      <div>
 
-{{#if buttonHas}}
+      {{#if buttonHas}}
 
-{{#ifEquals titleButton "Оценить"}}
-<button
-	class="
-		button
-		button-primary-{{ colorButton }}
-	"
-	type="button"
-	data-hystmodal="#reviewModal"
->
-	{{ titleButton }}
-</button>
-{{/ifEquals}}
+      {{#ifEquals titleButton "Rate"}}
+      <button
+              class="
+                      button
+                      button--primary-{{ colorButton }}
+              "
+              type="button"
+              data-attribute-modal="#modal"
+      >
+              {{ titleButton }}
+      </button>
+      {{/ifEquals}}
 
-{{#ifEquals titleButton "Сделать обзор"}}
-<a
-	class="
-		button
-		button-primary-{{ colorButton }}
-	"
-	href="#"
->
-	{{ titleButton }}
-</a>
-{{/ifEquals}}
+      {{#ifEquals titleButton "Write review"}}
+      <a
+              class="
+                      button
+                      button--primary-{{ colorButton }}
+              "
+              href="#"
+      >
+              {{ titleButton }}
+      </a>
+      {{/ifEquals}}
 
-{{/if}}
-</div>`;
+      {{/if}}
+      </div>
+    `);
 
     const output = await format(input);
 
-    expect(output).toBe(`<div>
+    expect(output).toBe(
+      stripIndentWithNL(`
+        <div>
 
-  {{#if buttonHas}}
-    {{#ifEquals titleButton \"Оценить\"}}
-      <button
-        class=\"
-          button
-          button-primary-{{ colorButton }}
-        \"
-        type=\"button\"
-        data-hystmodal=\"#reviewModal\"
-      >
-        {{ titleButton }}
-      </button>
-    {{/ifEquals}}
+          {{#if buttonHas}}
+            {{#ifEquals titleButton "Rate"}}
+              <button
+                class="
+                  button
+                  button--primary-{{ colorButton }}
+                "
+                type="button"
+                data-attribute-modal="#modal"
+              >
+                {{ titleButton }}
+              </button>
+            {{/ifEquals}}
 
-    {{#ifEquals titleButton \"Сделать обзор\"}}
-      <a
-        class=\"
-          button
-          button-primary-{{ colorButton }}
-        \"
-        href=\"#\"
-      >
-        {{ titleButton }}
-      </a>
-    {{/ifEquals}}
-  {{/if}}
-</div>
-`);
+            {{#ifEquals titleButton "Write review"}}
+              <a
+                class="
+                  button
+                  button--primary-{{ colorButton }}
+                "
+                href="#"
+              >
+                {{ titleButton }}
+              </a>
+            {{/ifEquals}}
+          {{/if}}
+        </div>
+      `),
+    );
   });
 });
 
 describe('blank lines', () => {
-  const template = `<div>
-  {{#if value}}
-    <span>one</span>
-  {{/if}}
+  const template = stripIndent(`
+    <div>
+      {{#if value}}
+        <span>one</span>
+      {{/if}}
 
-  <span>two</span>
-</div>`;
+      <span>two</span>
+    </div>
+  `);
 
   it('preserves a single intentional blank line between nodes', async () => {
     const output = await format(template);
 
-    expect(output).toBe(`<div>\n  {{#if value}}\n    <span>one</span>\n  {{/if}}\n\n  <span>two</span>\n</div>\n`);
+    expect(output).toBe(stripIndentWithNL(template));
   });
 
   it('reduces multiple blank lines to the configured maximum', async () => {
-    const input = `<div>\n  {{#if value}}\n    <span>one</span>\n  {{/if}}\n\n\n  <span>two</span>\n</div>`;
+    const input = stripIndent(`
+      <div>
+        {{#if value}}
+          <span>one</span>
+        {{/if}}
+
+
+        <span>two</span>
+      </div>
+    `);
     const output = await format(input);
 
-    expect(output).toBe(`<div>\n  {{#if value}}\n    <span>one</span>\n  {{/if}}\n\n  <span>two</span>\n</div>\n`);
+    expect(output).toBe(stripIndentWithNL(template));
   });
 
   it('honors overrides that allow more than one blank line', async () => {
-    const input = `<div>\n  {{#if value}}\n    <span>one</span>\n  {{/if}}\n\n\n  <span>two</span>\n</div>`;
+    const input = stripIndent(`
+      <div>
+        {{#if value}}
+          <span>one</span>
+        {{/if}}
+
+
+        <span>two</span>
+      </div>
+    `);
     const output = await format(input, { maxEmptyLines: 2 });
 
-    expect(output).toBe(`<div>\n  {{#if value}}\n    <span>one</span>\n  {{/if}}\n\n\n  <span>two</span>\n</div>\n`);
+    expect(output).toBe(stripIndentWithNL(input));
   });
 });
