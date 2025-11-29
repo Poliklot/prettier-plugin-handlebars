@@ -252,6 +252,10 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
   const sortedAttributes = sortAttributes(node.attributes, options);
   const parentNode = path.getParentNode();
   const grandParentNode = path.getParentNode(1);
+  const ancestors: Array<Node | null | undefined> = [
+    parentNode as Node | null | undefined,
+    grandParentNode as Node | null | undefined,
+  ];
 
   const openTag = concat(['<', node.tag]);
   let attributesDoc: Doc = '';
@@ -290,7 +294,7 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
   const singleChild = node.children.length === 1 ? node.children[0] : null;
   const singleChildIsMustache = singleChild?.type === 'MustacheStatement';
   const mustacheInsideBlock =
-    singleChildIsMustache && [parentNode, grandParentNode].some((ancestor) => ancestor?.type === 'BlockStatement');
+    singleChildIsMustache && ancestors.some((ancestor) => ancestor?.type === 'BlockStatement');
   const canInline =
     node.children.length === 1 &&
     childrenDocs.length === 1 &&
