@@ -365,67 +365,67 @@ describe('comments', () => {
     );
   });
 
-  // it('keeps single-line HTML comments on their own line', async () => {
-  //   const input = stripIndent(`
-  //     <!-- comment -->
-  //     <div class="class">
-  //   `);
+  it('keeps single-line HTML comments on their own line', async () => {
+    const input = stripIndent(`
+      <!-- comment -->
+      <div class="class">
+    `);
 
-  //   const output = await format(input);
+    const output = await format(input);
 
-  //   expect(output).toBe(
-  //     stripIndentWithNL(input),
-  //   );
-  // });
+    expect(output).toBe(
+      stripIndentWithNL(input),
+    );
+  });
 
-  // it('preserves indentation inside multiline HTML comments', async () => {
-  //   const input = stripIndent(`
-  //     <!--
-  //       comment
-  //     -->
-  //   `);
+  it('preserves indentation inside multiline HTML comments', async () => {
+    const input = stripIndent(`
+      <!--
+        comment
+      -->
+    `);
 
-  //   const output = await format(input);
+    const output = await format(input);
 
-  //   expect(output).toBe(
-  //     stripIndentWithNL(input),
-  //   );
-  // });
+    expect(output).toBe(
+      stripIndentWithNL(input),
+    );
+  });
 
-  // it('leaves HTML comments with nested markup untouched', async () => {
-  //   const input = stripIndent(`
-  //     <!--
-  //       <li class="class">
-  //         <button type="button">
-  //           <span>Lorem</span>
-  //         </button>
-  //       </li> 
-  //     -->
-  //   `);
+  it('leaves HTML comments with nested markup untouched', async () => {
+    const input = stripIndent(`
+      <!--
+        <li class="class">
+          <button type="button">
+            <span>Lorem</span>
+          </button>
+        </li> 
+      -->
+    `);
 
-  //   const output = await format(input);
+    const output = await format(input);
 
-  //   expect(output).toBe(
-  //     stripIndentWithNL(input),
-  //   );
-  // });
+    expect(output).toBe(
+      stripIndentWithNL(input),
+    );
+  });
 
-  // it('retains existing spacing inside misaligned HTML comments', async () => {
-  //   const input = stripIndent(`
-  //     <!-- <li class="class">
-  //               <button type="button">
-  //                 <span>Lorem</span>
-  //               </button>
-  //       </li> 
-  //     -->
-  //   `);
+  it('retains existing spacing inside misaligned HTML comments', async () => {
+    const input = stripIndent(`
+      <!-- <li class="class">
+                <button type="button">
+                  <span>Lorem</span>
+                </button>
+        </li> 
+      -->
+    `);
 
-  //   const output = await format(input);
+    const output = await format(input);
 
-  //   expect(output).toBe(
-  //     stripIndentWithNL(input),
-  //   );
-  // });
+    expect(output).toBe(
+      stripIndentWithNL(input),
+    );
+  });
 });
 
 describe('comments stability', () => {
