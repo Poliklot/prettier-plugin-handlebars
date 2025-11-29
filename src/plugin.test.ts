@@ -11,69 +11,98 @@ async function format(source: string, overrides: prettier.Options = {}) {
   });
 }
 
+function stripIndent(str: string): string {
+  const withoutEdgeNewlines = str.replace(/^\n/, '').replace(/\s*$/, '');
+  const lines = withoutEdgeNewlines.split('\n');
+
+  const indents = lines
+    .filter(line => line.trim().length > 0)
+    .map(line => line.match(/^(\s*)/)![1].length);
+
+  const minIndent = indents.length ? Math.min(...indents) : 0;
+
+  return lines.map(line => line.slice(minIndent)).join('\n');
+};
+
+function stripIndentWithNL(str: string): string {
+  return stripIndent(str) + '\n';
+}
+
 describe('attribute ordering', () => {
   it('sorts id and class first while keeping simple attributes inline', async () => {
-    const input = "<div data-attr class='c' id='main'></div>";
+    const input = `<div data-attr class='c' id='main'></div>`;
     const output = await format(input);
-    expect(output).toBe("<div id=\"main\" class=\"c\" data-attr></div>\n");
+    expect(output).toBe(stripIndentWithNL(`<div id="main" class="c" data-attr></div>`));
   });
 
   it('preserves data-* position when no custom order is provided', async () => {
     const input = '<a class="link" data-track="open" href="/home"></a>';
     const output = await format(input);
-    expect(output).toBe('<a class="link" data-track="open" href="/home"></a>\n');
+    expect(output).toBe(stripIndentWithNL(`<a class="link" data-track="open" href="/home"></a>`));
   });
 });
 
 describe('partials', () => {
   it('prints partial without params inline', async () => {
-    const input = "{{> 'blocks/header'}}";
+    const input = `{{> 'blocks/header'}}`;
     const output = await format(input);
-    expect(output).toBe("{{> 'blocks/header'}}\n");
+    expect(output).toBe(stripIndentWithNL(`{{> 'blocks/header'}}`));
   });
 
   it('moves partial params to new lines', async () => {
-    const input = "{{> 'blocks/header' uptitle=uptitle subtitle='sub'}}";
+    const input = `{{> 'blocks/header' uptitle=uptitle subtitle='sub'}}`;
     const output = await format(input);
-    expect(output).toBe("{{> 'blocks/header'\n  uptitle=uptitle\n  subtitle='sub'\n}}\n");
+    expect(output).toBe(stripIndentWithNL(`
+      {{> 'blocks/header'
+        uptitle=uptitle
+        subtitle='sub'
+      }}
+    `));
   });
 });
 
 describe('class with condition', () => {
   it('expands conditional classes', async () => {
-    const input = "<div class=\"some{{#if other}} other{{/if}}\"></div>";
+    const input = `<div class="some{{#if other}} other{{/if}}"></div>`;
     const output = await format(input);
-    expect(output).toBe(
-      "<div\n  class=\"\n    some\n    {{#if other}}\n      other\n    {{/if}}\n  \"\n></div>\n",
-    );
+    expect(output).toBe(stripIndentWithNL(`
+      <div
+        class="
+          some
+          {{#if other}}
+            other
+          {{/if}}
+        "
+      ></div>
+    `));
   });
 });
 
 describe('block indentation', () => {
   it('indents nested blocks and closes correctly', async () => {
-    const input = `{{#each items}}
-<li>
-{{#if icon}}
-icon
-{{else}}
-no-icon
-{{/if}}
-</li>
-{{/each}}`;
-
-    const output = await format(input);
-    expect(output).toBe(
-      `{{#each items}}
-  <li>
-    {{#if icon}}
+    const input = `
+      {{#each items}}
+      <li>
+      {{#if icon}}
       icon
-    {{else}}
+      {{else}}
       no-icon
-    {{/if}}
-  </li>
-{{/each}}
-`,
-    );
+      {{/if}}
+      </li>
+      {{/each}}
+    `;
+    const output = await format(input);
+    expect(output).toBe(stripIndentWithNL(`
+      {{#each items}}
+        <li>
+          {{#if icon}}
+            icon
+          {{else}}
+            no-icon
+          {{/if}}
+        </li>
+      {{/each}}
+    `));
   });
 });
 
@@ -81,29 +110,34 @@ describe('mustache spacing', () => {
   it('normalizes spaces for simple mustache', async () => {
     const input = '{{value}}';
     const output = await format(input);
-    expect(output).toBe('{{ value }}\n');
+    expect(output).toBe(stripIndentWithNL('{{ value }}'));
   });
 
   it('removes trailing space before block close', async () => {
     const input = '{{#if item }}{{/if}}';
     const output = await format(input);
-    expect(output).toBe('{{#if item}}\n{{/if}}\n');
+    expect(output).toBe(stripIndentWithNL(`
+      {{#if item}}
+      {{/if}}
+    `));
   });
 });
 
 describe('helpers with hash pairs', () => {
   it('prints multiple hash pairs on separate lines', async () => {
-    const input = `{{assign
-  headTitle="Padel Stars | Страница не найдена"
-  headDescription="Ошибка 404"
-}}`;
-
+    const input = `
+      {{assign
+        headTitle="Padel Stars | Страница не найдена"
+        headDescription="Ошибка 404"
+      }}
+    `;
     const output = await format(input);
-
-    expect(output).toBe(`{{ assign
-  headTitle="Padel Stars | Страница не найдена"
-  headDescription="Ошибка 404"
-}}\n`);
+    expect(output).toBe(stripIndentWithNL(`
+      {{ assign
+        headTitle="Padel Stars | Страница не найдена"
+        headDescription="Ошибка 404"
+      }}
+    `));
   });
 });
 
@@ -369,27 +403,23 @@ describe('inline child elements', () => {
 
 describe('void elements', () => {
   it('treats source as self closing without explicit slash', async () => {
-    const input =
-      '<source media="(min-width:1440px)" srcset="@img/pic.avif" type="image/avif">';
+    const input = stripIndent('<source media="(min-width:1440px)" srcset="@img/pic.avif" type="image/avif">');
     const output = await format(input);
-    expect(output).toBe(`<source media=\"(min-width:1440px)\" srcset=\"@img/pic.avif\" type=\"image/avif\" />\n`);
+    expect(output).toBe(stripIndentWithNL(`<source media="(min-width:1440px)" srcset="@img/pic.avif" type="image/avif" />`));
   });
 
   it('avoids leading whitespace before the self-closing slash on its own line', async () => {
-    const input = `<source
-  media="(min-width: 650px)"
-  srcset="@img/certificates/background/background.webp"
-  type="image/webp"
-/>`;
+    const input = stripIndent(`<source media="(min-width: 650px)" srcset="@img/certificates/background/background.webp" type="image/webp"/>`);
 
     const output = await format(input);
 
-    expect(output).toBe(`<source
-  media=\"(min-width: 650px)\"
-  srcset=\"@img/certificates/background/background.webp\"
-  type=\"image/webp\"
-/>
-`);
+    expect(output).toBe(stripIndentWithNL(`
+      <source
+        media="(min-width: 650px)"
+        srcset="@img/certificates/background/background.webp"
+        type="image/webp"
+      />
+    `));
   });
 });
 

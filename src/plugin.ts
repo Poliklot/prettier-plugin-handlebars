@@ -3,9 +3,9 @@ import { printer } from './printer';
 
 export const languages = [
   {
-    name: 'HandlebarsCustom',
+    name: 'Handlebars',
     parsers: ['handlebars'],
-    extensions: ['.hbs'],
+    extensions: ['.hbs', '.handlebars'],
   },
 ];
 
