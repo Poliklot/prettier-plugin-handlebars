@@ -2,7 +2,7 @@ import type { AstPath, Doc, ParserOptions, Printer } from 'prettier';
 import { builders } from 'prettier/doc';
 import { BlockStatement, ElementAttribute, ElementNode, HashPair, MustacheStatement, Node, PartialStatement, Program, TextNode, UnmatchedNode } from './types';
 
-const { hardline, join, group, indent, line, softline, ifBreak } = builders;
+const { hardline, join, group, indent, line, softline, ifBreak, lineSuffix, lineSuffixBoundary } = builders;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
 
 function docHasHardline(doc: Doc): boolean {
@@ -94,6 +94,10 @@ function formatVerbatimText(content: string): Doc {
     ? withoutLeadingNewline.slice(0, -1)
     : withoutLeadingNewline;
 
+  if (withoutTrailingNewline.trimStart().startsWith('<!--')) {
+    return withoutTrailingNewline;
+  }
+
   const lines = withoutTrailingNewline.split('\n');
   const commonIndent = lines.reduce((min, line) => {
     if (line.trim() === '') return min;
@@ -119,7 +123,25 @@ function formatVerbatimText(content: string): Doc {
     return '';
   }
 
-  return join(hardline, normalizedLines);
+  const docs: Doc[] = [];
+
+  normalizedLines.forEach((lineText, index) => {
+    const trailingWhitespaceMatch = lineText.match(/(\s+)$/);
+    const trailingWhitespace = trailingWhitespaceMatch?.[1] ?? '';
+    const contentWithoutTrailing = trailingWhitespace ? lineText.slice(0, -trailingWhitespace.length) : lineText;
+
+    docs.push(contentWithoutTrailing);
+    if (trailingWhitespace) {
+      docs.push(lineSuffix(trailingWhitespace));
+      docs.push(lineSuffixBoundary);
+    }
+
+    if (index < normalizedLines.length - 1) {
+      docs.push(hardline);
+    }
+  });
+
+  return concat(docs);
 }
 
 function printProgram(path: AstPath<Program>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {

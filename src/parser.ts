@@ -131,6 +131,15 @@ function parseChildren(text: string, position: number, endTag: string | null, en
     }
 
     if (text[pos] === '<') {
+      if (text.startsWith('<!--', pos)) {
+        const closeIdx = text.indexOf('-->', pos + 4);
+        const end = closeIdx >= 0 ? closeIdx + 3 : text.length;
+
+        nodes.push({ type: 'TextNode', value: text.slice(pos, end), verbatim: true } as TextNode);
+        pos = end;
+        continue;
+      }
+
       const tagResult = parseTag(text, pos);
 
       if (tagResult.kind === 'close') {
