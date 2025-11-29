@@ -599,6 +599,9 @@ function tokenize(content: string): string[] {
   const tokens: string[] = [];
   let current = '';
   let quote: '"' | "'" | null = null;
+  let parenDepth = 0;
+  let bracketDepth = 0;
+  let braceDepth = 0;
 
   for (let i = 0; i < content.length; i += 1) {
     const char = content[i];
@@ -617,7 +620,43 @@ function tokenize(content: string): string[] {
       continue;
     }
 
-    if (whitespace.test(char)) {
+    if (char === '(') {
+      parenDepth += 1;
+      current += char;
+      continue;
+    }
+
+    if (char === ')') {
+      parenDepth = Math.max(parenDepth - 1, 0);
+      current += char;
+      continue;
+    }
+
+    if (char === '[') {
+      bracketDepth += 1;
+      current += char;
+      continue;
+    }
+
+    if (char === ']') {
+      bracketDepth = Math.max(bracketDepth - 1, 0);
+      current += char;
+      continue;
+    }
+
+    if (char === '{') {
+      braceDepth += 1;
+      current += char;
+      continue;
+    }
+
+    if (char === '}') {
+      braceDepth = Math.max(braceDepth - 1, 0);
+      current += char;
+      continue;
+    }
+
+    if (whitespace.test(char) && parenDepth === 0 && bracketDepth === 0 && braceDepth === 0) {
       if (current) {
         tokens.push(current);
         current = '';

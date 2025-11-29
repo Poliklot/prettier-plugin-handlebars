@@ -319,6 +319,10 @@ function printAttribute(attr: ElementAttribute): Doc {
     return attr.name;
   }
 
+  if (attr.value === '' && attr.name.startsWith('data-')) {
+    return attr.name;
+  }
+
   if (attr.name === 'class' && /{{#/.test(attr.value)) {
     const classLines = formatClassValue(attr.value);
     return concat([
@@ -469,8 +473,8 @@ function printPartial(node: PartialStatement, options: ParserOptions): Doc {
   }
 
   const paramsDocs: Doc[] = [];
-  node.params.forEach((param) => paramsDocs.push(param));
-  node.hash.forEach((pair) => paramsDocs.push(formatHash(pair)));
+  node.params.forEach((param) => paramsDocs.push(formatPartialParam(param)));
+  node.hash.forEach((pair) => paramsDocs.push(formatPartialParam(formatHash(pair))));
 
   return group(
     concat([
@@ -481,6 +485,50 @@ function printPartial(node: PartialStatement, options: ParserOptions): Doc {
       '}}',
     ]),
   );
+}
+
+function formatPartialParam(param: string): Doc {
+  if (!param.includes('\n')) {
+    return param;
+  }
+
+  const lines = param.split('\n');
+
+  while (lines.length > 0 && lines[0].trim() === '') {
+    lines.shift();
+  }
+
+  while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+    lines.pop();
+  }
+
+  if (lines.length === 0) {
+    return '';
+  }
+
+  const [firstLine, ...rest] = lines;
+
+  if (rest.length === 0) {
+    return firstLine;
+  }
+
+  const indents = rest
+    .filter((line) => line.trim().length > 0)
+    .map((line) => (line.match(/^[ \t]*/) || [''])[0].length);
+
+  const commonIndent = indents.length ? Math.min(...indents) : 0;
+  const maxExtraIndent = 2;
+
+  const normalizedRest = rest.map((line) => {
+    const indentLength = (line.match(/^[ \t]*/) || [''])[0].length;
+    const diff = Math.max(indentLength - commonIndent, 0);
+    const allowedIndent = Math.min(diff, maxExtraIndent);
+    const trimAmount = Math.max(indentLength - allowedIndent, 0);
+    const trimmedLine = line.slice(trimAmount).replace(/[ \t]+$/, '');
+    return trimmedLine;
+  });
+
+  return concat([firstLine, hardline, join(hardline, normalizedRest)]);
 }
 
 function formatMultilineComment(content: string): Doc {
