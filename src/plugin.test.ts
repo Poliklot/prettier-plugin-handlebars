@@ -131,6 +131,75 @@ describe('partials', () => {
       }}
     `));
   });
+
+  it('formats complex partial parameters across multiple lines 2', async () => {
+    const input = `
+      {{> 'blocks/product-card/product-card' id='0000'
+        modification="big"
+        name="name"
+        imgSrc="@img/image.jpeg"
+        href='./href.html' imgLoading='lazy'
+        bonusesCount=100
+        currentPrice="text"
+        prevPrice=55068
+        inBasket=false
+        isFavorite=false
+        isCompared=false
+        buttonIsDisabled=false
+        status=(parseJSON '{
+                                                  "color": "orange",
+                                                  "text": "text"
+        }')
+        isHit=false
+        badgeHas=true
+        tagsHas=true
+        badge=[{ color:"orange", text:"text" }]
+        tags=(parseJSON '{
+                        "timer": { "text": "text", "hasModification": false, "modification": "" },
+                        "count": { "text": "text", "hasModification": false, "modification": "" }
+        }')
+        withoutLinks=true linksTargetBlank=true
+                  withoutInfoList=true
+        withoutMoreButtons=true
+        withoutBottom=true
+      }}
+    `;
+    const output = await format(input);
+    expect(output).toBe(stripIndentWithNL(`
+      {{> 'blocks/product-card/product-card'
+        id='0000'
+        modification="big"
+        name="name"
+        imgSrc="@img/image.jpeg"
+        href='./href.html'
+        imgLoading='lazy'
+        bonusesCount=100
+        currentPrice="text"
+        prevPrice=55068
+        inBasket=false
+        isFavorite=false
+        isCompared=false
+        buttonIsDisabled=false
+        status=(parseJSON '{
+          "color": "orange",
+          "text": "text"
+        }')
+        isHit=false
+        badgeHas=true
+        tagsHas=true
+        badge=[{ color:"orange", text:"text" }]
+        tags=(parseJSON '{
+          "timer": { "text": "text", "hasModification": false, "modification": "" },
+          "count": { "text": "text", "hasModification": false, "modification": "" }
+        }')
+        withoutLinks=true
+        linksTargetBlank=true
+        withoutInfoList=true
+        withoutMoreButtons=true
+        withoutBottom=true
+      }}
+    `));
+  });
 });
 
 describe('class with condition', () => {
