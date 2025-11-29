@@ -22,7 +22,7 @@ function stripIndent(str: string): string {
   const minIndent = indents.length ? Math.min(...indents) : 0;
 
   return lines.map(line => line.slice(minIndent)).join('\n');
-};
+}
 
 function stripIndentWithNL(str: string): string {
   return stripIndent(str) + '\n';
@@ -60,7 +60,7 @@ describe('partials', () => {
     `));
   });
 
-  it('x1', async () => {
+  it('formats complex partial parameters across multiple lines', async () => {
     const input = `
       {{> 'blocks/product-card/product-card'
         id='0000'
@@ -148,8 +148,10 @@ describe('class with condition', () => {
       ></div>
     `));
   });
-  
-  it('x1', async () => {
+});
+
+describe('boolean attributes', () => {
+  it('omits empty attribute values for data attributes', async () => {
     const input = `<a class="class" data-form-button="">Link</a>`;
     const output = await format(input);
     expect(output).toBe(stripIndentWithNL(`<a class="class" data-form-button>Link</a>`));
@@ -294,7 +296,7 @@ describe('comments', () => {
     );
   });
 
-  it('x1', async () => {
+  it('keeps single-line HTML comments on their own line', async () => {
     const input = stripIndent(`
       <!-- comment -->
       <div class="class">
@@ -307,7 +309,7 @@ describe('comments', () => {
     );
   });
 
-  it('x2', async () => {
+  it('preserves indentation inside multiline HTML comments', async () => {
     const input = stripIndent(`
       <!--
         comment
@@ -321,9 +323,9 @@ describe('comments', () => {
     );
   });
 
-  it('x3', async () => {
+  it('leaves HTML comments with nested markup untouched', async () => {
     const input = stripIndent(`
-      <!-- 
+      <!--
         <li class="class">
           <button type="button">
             <span>Lorem</span>
@@ -339,7 +341,7 @@ describe('comments', () => {
     );
   });
 
-  it('x4', async () => {
+  it('retains existing spacing inside misaligned HTML comments', async () => {
     const input = stripIndent(`
       <!-- <li class="class">
                 <button type="button">
@@ -604,7 +606,7 @@ describe('unmatched structures', () => {
 });
 
 describe('inline child elements', () => {
-  it('x-1', async () => {
+  it('keeps short inline text on a single line when within print width', async () => {
     const input =
       '<span class="banner__discount">Lorem ipsum dolor sit amet that still fits on one line</span>';
     const output = await format(input, { printWidth: 120 });
@@ -614,7 +616,7 @@ describe('inline child elements', () => {
     `));
   });
 
-  it('x0', async () => {
+  it('wraps inline content containing mustache expressions when it exceeds print width', async () => {
     const input =
       '<span class="banner__discount">Lorem ipsum text with an amount {{ amount }} $ for one item</span>';
     const output = await format(input, { printWidth: 120 });
@@ -626,7 +628,7 @@ describe('inline child elements', () => {
     `));
   });
 
-  it('x1', async () => {
+  it('breaks inline elements with verbose class names and inline partials', async () => {
     const input = `
       <span class="product-card-to-cart__controls-button-icon--heart product-card-to-cart__controls-button-icon--acitve product-card-to-cart__controls-button-icon">{{> 'snippets/icon-heart'}}</span>
     `;
@@ -645,7 +647,7 @@ describe('inline child elements', () => {
     `));
   });
 
-  it('x2', async () => {
+  it('preserves block formatting when inline partials are already on new lines', async () => {
     const input = `
       <span class="product-card-to-cart__controls-button-icon--heart product-card-to-cart__controls-button-icon">
         {{> 'snippets/icon-heart'}}
@@ -660,7 +662,7 @@ describe('inline child elements', () => {
     `));
   });
 
-  it('x3', async () => {
+  it('wraps inline content that mixes text, <br>, and mustache output', async () => {
     const input =
       '<span class="banner__discount">Lorem ipsum text with an amount {{ amount }} $<br> {{{ additional_info }}}for one item</span>';
     const output = await format(input, { printWidth: 120 });
@@ -673,10 +675,10 @@ describe('inline child elements', () => {
     `));
   });
 
-  it('x4', async () => {
+  it('indents inline children that contain conditional blocks', async () => {
     const input = `
       <span class="banner__discount">
-      Lorem ipsum text with an amount {{ amount }}$<br> 
+      Lorem ipsum text with an amount {{ amount }}$<br>
       {{#if additional_info}}{{{ additional_info }}}<br>{{/if}}
       for one item
       </span>
@@ -685,38 +687,12 @@ describe('inline child elements', () => {
 
     expect(output).toBe(stripIndentWithNL(`
       <span class="banner__discount">
-        Lorem ipsum text with an amount {{ amount }}$<br> 
+        Lorem ipsum text with an amount {{ amount }}$<br>
         {{#if additional_info}}
           {{{ additional_info }}}<br />
         {{/if}}
         for one item
       </span>
-    `));
-  });
-
-  it('x5', async () => {
-    const input = `<img src="@img/icon-name.svg" alt="very very very very very very very very very very very very long alt" loading="lazy"/>`;
-    const output = await format(input, { printWidth: 120 });
-
-    expect(output).toBe(stripIndentWithNL(`
-      <img 
-        src="@img/icon-name.svg" 
-        alt="very very very very very very very very very very very very long alt" 
-        loading="lazy"
-      />
-    `));
-  });
-
-  it('x6', async () => {
-    const input = `<img src="@img/icon-name.svg" alt="very very very very very very very very very very very very long alt" loading="lazy"/>`;
-    const output = await format(input, { printWidth: 120 });
-
-    expect(output).toBe(stripIndentWithNL(`
-      <img 
-        src="@img/icon-name.svg" 
-        alt="very very very very very very very very very very very very long alt" 
-        loading="lazy"
-      />
     `));
   });
 });
@@ -823,6 +799,19 @@ describe('line wrapping', () => {
         ></a>
       `),
     );
+  });
+
+  it('wraps long attributes on void elements', async () => {
+    const input = `<img src="@img/icon-name.svg" alt="very very very very very very very very very very very very long alt" loading="lazy"/>`;
+    const output = await format(input, { printWidth: 120 });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <img
+        src="@img/icon-name.svg"
+        alt="very very very very very very very very very very very very long alt"
+        loading="lazy"
+      />
+    `));
   });
 });
 
