@@ -59,6 +59,78 @@ describe('partials', () => {
       }}
     `));
   });
+
+  it('x1', async () => {
+    const input = `
+      {{> 'blocks/product-card/product-card'
+        id='0000'
+        modification="big"
+        name="name"
+        imgSrc="@img/image.jpeg"
+        href='./href.html'
+        imgLoading='lazy'
+        bonusesCount=100
+        currentPrice="text"
+        prevPrice=55068
+        inBasket=false
+        isFavorite=false
+        isCompared=false
+        buttonIsDisabled=false
+        status=(parseJSON '{
+          "color": "orange",
+          "text": "text"
+        }')
+        isHit=false
+        badgeHas=true
+        tagsHas=true
+        badge=[{ color:"orange", text:"text" }]
+        tags=(parseJSON '{
+              "timer": { "text": "text", "hasModification": false, "modification": "" },
+              "count": { "text": "text", "hasModification": false, "modification": "" }
+        }')
+        withoutLinks=true
+        linksTargetBlank=true
+        withoutInfoList=true
+        withoutMoreButtons=true
+        withoutBottom=true
+      }}
+    `;
+    const output = await format(input);
+    expect(output).toBe(stripIndentWithNL(`
+      {{> 'blocks/product-card/product-card'
+        id='0000'
+        modification="big"
+        name="name"
+        imgSrc="@img/image.jpeg"
+        href='./href.html'
+        imgLoading='lazy'
+        bonusesCount=100
+        currentPrice="text"
+        prevPrice=55068
+        inBasket=false
+        isFavorite=false
+        isCompared=false
+        buttonIsDisabled=false
+        status=(parseJSON '{
+          "color": "orange",
+          "text": "text"
+        }')
+        isHit=false
+        badgeHas=true
+        tagsHas=true
+        badge=[{ color:"orange", text:"text" }]
+        tags=(parseJSON '{
+          "timer": { "text": "text", "hasModification": false, "modification": "" },
+          "count": { "text": "text", "hasModification": false, "modification": "" }
+        }')
+        withoutLinks=true
+        linksTargetBlank=true
+        withoutInfoList=true
+        withoutMoreButtons=true
+        withoutBottom=true
+      }}
+    `));
+  });
 });
 
 describe('class with condition', () => {
@@ -75,6 +147,12 @@ describe('class with condition', () => {
         "
       ></div>
     `));
+  });
+  
+  it('x1', async () => {
+    const input = `<a class="class" data-form-button="">Link</a>`;
+    const output = await format(input);
+    expect(output).toBe(stripIndentWithNL(`<a class="class" data-form-button>Link</a>`));
   });
 });
 
@@ -213,6 +291,68 @@ describe('comments', () => {
           {{/if}}
         </div>
       `),
+    );
+  });
+
+  it('x1', async () => {
+    const input = stripIndent(`
+      <!-- comment -->
+      <div class="class">
+    `);
+
+    const output = await format(input);
+
+    expect(output).toBe(
+      stripIndentWithNL(input),
+    );
+  });
+
+  it('x2', async () => {
+    const input = stripIndent(`
+      <!--
+        comment
+      -->
+    `);
+
+    const output = await format(input);
+
+    expect(output).toBe(
+      stripIndentWithNL(input),
+    );
+  });
+
+  it('x3', async () => {
+    const input = stripIndent(`
+      <!-- 
+        <li class="class">
+          <button type="button">
+            <span>Lorem</span>
+          </button>
+        </li> 
+      -->
+    `);
+
+    const output = await format(input);
+
+    expect(output).toBe(
+      stripIndentWithNL(input),
+    );
+  });
+
+  it('x4', async () => {
+    const input = stripIndent(`
+      <!-- <li class="class">
+                <button type="button">
+                  <span>Lorem</span>
+                </button>
+        </li> 
+      -->
+    `);
+
+    const output = await format(input);
+
+    expect(output).toBe(
+      stripIndentWithNL(input),
     );
   });
 });
@@ -464,24 +604,120 @@ describe('unmatched structures', () => {
 });
 
 describe('inline child elements', () => {
-  it('keeps a single long text node inline', async () => {
+  it('x-1', async () => {
     const input =
       '<span class="banner__discount">Lorem ipsum dolor sit amet that still fits on one line</span>';
     const output = await format(input, { printWidth: 120 });
 
-    expect(output).toBe(
-      '<span class=\"banner__discount\">Lorem ipsum dolor sit amet that still fits on one line</span>\n',
-    );
+    expect(output).toBe(stripIndentWithNL(`
+      <span class="banner__discount">Lorem ipsum dolor sit amet that still fits on one line</span>
+    `));
   });
 
-  it('breaks to multiple lines when there are several child nodes', async () => {
+  it('x0', async () => {
     const input =
       '<span class="banner__discount">Lorem ipsum text with an amount {{ amount }} $ for one item</span>';
     const output = await format(input, { printWidth: 120 });
 
-    expect(output).toBe(
-      `<span class=\"banner__discount\">\n  Lorem ipsum text with an amount\n  {{ amount }}\n  $ for one item\n</span>\n`,
-    );
+    expect(output).toBe(stripIndentWithNL(`
+      <span class="banner__discount">
+        Lorem ipsum text with an amount {{ amount }} $ for one item
+      </span>
+    `));
+  });
+
+  it('x1', async () => {
+    const input = `
+      <span class="product-card-to-cart__controls-button-icon--heart product-card-to-cart__controls-button-icon--acitve product-card-to-cart__controls-button-icon">{{> 'snippets/icon-heart'}}</span>
+    `;
+    const output = await format(input, { printWidth: 120 });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <span 
+        class="
+          product-card-to-cart__controls-button-icon--heart
+          product-card-to-cart__controls-button-icon--acitve
+          product-card-to-cart__controls-button-icon
+        "
+      >
+        {{> 'snippets/icon-heart'}}
+      </span>
+    `));
+  });
+
+  it('x2', async () => {
+    const input = `
+      <span class="product-card-to-cart__controls-button-icon--heart product-card-to-cart__controls-button-icon">
+        {{> 'snippets/icon-heart'}}
+      </span>
+    `;
+    const output = await format(input, { printWidth: 120 });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <span class="product-card-to-cart__controls-button-icon--heart product-card-to-cart__controls-button-icon">
+        {{> 'snippets/icon-heart'}}
+      </span>
+    `));
+  });
+
+  it('x3', async () => {
+    const input =
+      '<span class="banner__discount">Lorem ipsum text with an amount {{ amount }} $<br> {{{ additional_info }}}for one item</span>';
+    const output = await format(input, { printWidth: 120 });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <span class="banner__discount">
+        Lorem ipsum text with an amount {{ amount }} $<br />
+        {{{ additional_info }}}for one item
+      </span>
+    `));
+  });
+
+  it('x4', async () => {
+    const input = `
+      <span class="banner__discount">
+      Lorem ipsum text with an amount {{ amount }}$<br> 
+      {{#if additional_info}}{{{ additional_info }}}<br>{{/if}}
+      for one item
+      </span>
+    `;
+    const output = await format(input, { printWidth: 120 });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <span class="banner__discount">
+        Lorem ipsum text with an amount {{ amount }}$<br> 
+        {{#if additional_info}}
+          {{{ additional_info }}}<br />
+        {{/if}}
+        for one item
+      </span>
+    `));
+  });
+
+  it('x5', async () => {
+    const input = `<img src="@img/icon-name.svg" alt="very very very very very very very very very very very very long alt" loading="lazy"/>`;
+    const output = await format(input, { printWidth: 120 });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <img 
+        src="@img/icon-name.svg" 
+        alt="very very very very very very very very very very very very long alt" 
+        loading="lazy"
+      />
+    `));
+  });
+
+  it('x6', async () => {
+    const input = `<img src="@img/icon-name.svg" alt="very very very very very very very very very very very very long alt" loading="lazy"/>`;
+    const output = await format(input, { printWidth: 120 });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <img 
+        src="@img/icon-name.svg" 
+        alt="very very very very very very very very very very very very long alt" 
+        loading="lazy"
+      />
+    `));
   });
 });
 
@@ -511,7 +747,7 @@ describe('data attribute ordering', () => {
   it('allows overriding data-* order through config', async () => {
     const input = '<div data-attribute-b="b" data-attribute-a="a" data-attribute-c="c"></div>';
     const output = await format(input, { dataAttributeOrder: ['data-attribute-c', 'data-attribute-a'] });
-    expect(output).toBe(`<div data-attribute-c=\"c\" data-attribute-a=\"a\" data-attribute-b=\"b\"></div>\n`);
+    expect(output).toBe(`<div data-attribute-c="c" data-attribute-a="a" data-attribute-b="b"></div>\n`);
   });
 });
 
@@ -758,6 +994,19 @@ describe('blank lines', () => {
     const output = await format(template);
 
     expect(output).toBe(stripIndentWithNL(template));
+  });
+
+  it('removes extra blank lines', async () => {
+    const output = await format(template, { maxEmptyLines: 0 });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <div>
+        {{#if value}}
+          <span>one</span>
+        {{/if}}
+        <span>two</span>
+      </div>
+    `));
   });
 
   it('reduces multiple blank lines to the configured maximum', async () => {
