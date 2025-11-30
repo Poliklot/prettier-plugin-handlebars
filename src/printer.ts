@@ -325,6 +325,12 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
   const singleChildIsMustache = singleChild?.type === 'MustacheStatement';
   const mustacheInsideBlock =
     singleChildIsMustache && ancestors.some((ancestor) => ancestor?.type === 'BlockStatement');
+  const simpleInlineChildren =
+    node.children.length > 0 &&
+    node.children.every(
+      (child) =>
+        (child.type === 'TextNode' && !child.verbatim && !child.blankLines) || child.type === 'MustacheStatement',
+    );
   const canInline =
     node.children.length === 1 &&
     childrenDocs.length === 1 &&
@@ -336,6 +342,17 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
 
   if (canInline) {
     return concat([openDoc, childrenDocs[0], closeDoc]);
+  }
+
+  const canInlineSimpleChildren =
+    simpleInlineChildren &&
+    !docHasHardline(openDoc) &&
+    !docHasHardline(closeDoc) &&
+    !childrenDocs.some(docHasHardline) &&
+    !mustacheInsideBlock;
+
+  if (canInlineSimpleChildren) {
+    return concat([openDoc, join(' ', childrenDocs), closeDoc]);
   }
 
   const inner =

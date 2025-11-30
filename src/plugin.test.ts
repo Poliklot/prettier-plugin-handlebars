@@ -685,17 +685,13 @@ describe('inline child elements', () => {
     `));
   });
 
-  it('wraps inline content containing mustache expressions when it exceeds print width', async () => {
+  it('keeps inline content containing mustache expressions on a single line when within print width', async () => {
     const input =
       '<span class="banner__discount">Lorem ipsum text with an amount {{ amount }} $ for one item</span>';
     const output = await format(input, { printWidth: 120 });
 
     expect(output).toBe(stripIndentWithNL(`
-      <span class="banner__discount">
-        Lorem ipsum text with an amount
-        {{ amount }}
-        $ for one item
-      </span>
+      <span class="banner__discount">Lorem ipsum text with an amount {{ amount }} $ for one item</span>
     `));
   });
 
