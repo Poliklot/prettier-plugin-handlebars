@@ -35,7 +35,7 @@ function docHasHardline(doc: Doc): boolean {
 
 function getMaxEmptyLines(options: ParserOptions): number {
   const rawValue = (options as Record<string, unknown>).maxEmptyLines;
-  if (typeof rawValue === 'number' && rawValue >= 1) {
+  if (typeof rawValue === 'number' && rawValue >= 0) {
     return rawValue;
   }
 
@@ -147,7 +147,15 @@ function formatVerbatimText(content: string): Doc {
 function printProgram(path: AstPath<Program>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {
   const parts: Doc[] = [];
   path.each((childPath) => {
+    const childNode = childPath.getValue() as Node;
+    if (childNode.type === 'TextNode' && childNode.blankLines && getMaxEmptyLines(options) === 0) {
+      return;
+    }
+
     const doc = print(childPath as AstPath<Node>);
+    if (doc === null) {
+      return;
+    }
     parts.push(doc);
   }, 'body');
 
@@ -468,7 +476,16 @@ function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print
   const open = concat(['{{#', buildExpression(node), '}}']);
   const bodyDocs: Doc[] = [];
   path.each((childPath) => {
-    bodyDocs.push(print(childPath as AstPath<Node>));
+    const childNode = childPath.getValue() as Node;
+    if (childNode.type === 'TextNode' && childNode.blankLines && getMaxEmptyLines(options) === 0) {
+      return;
+    }
+
+    const doc = print(childPath as AstPath<Node>);
+    if (doc === null) {
+      return;
+    }
+    bodyDocs.push(doc);
   }, 'program');
 
   const body =
@@ -478,7 +495,16 @@ function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print
   if (node.inverse.length > 0) {
     const inverseDocs: Doc[] = [];
     path.each((childPath) => {
-      inverseDocs.push(print(childPath as AstPath<Node>));
+      const childNode = childPath.getValue() as Node;
+      if (childNode.type === 'TextNode' && childNode.blankLines && getMaxEmptyLines(options) === 0) {
+        return;
+      }
+
+      const doc = print(childPath as AstPath<Node>);
+      if (doc === null) {
+        return;
+      }
+      inverseDocs.push(doc);
     }, 'inverse');
     inverse = concat(['{{else}}', indent(concat([hardline, join(hardline, inverseDocs)])), hardline]);
   }
