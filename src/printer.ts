@@ -1,8 +1,9 @@
 import type { AstPath, Doc, ParserOptions, Printer } from 'prettier';
-import { builders } from 'prettier/doc';
+import { builders, utils } from 'prettier/doc';
 import { BlockStatement, ElementAttribute, ElementNode, HashPair, MustacheStatement, Node, PartialStatement, Program, TextNode, UnmatchedNode } from './types';
 
 const { hardline, join, group, indent, line, softline, ifBreak, lineSuffix, lineSuffixBoundary } = builders;
+const { willBreak } = utils;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
 
 function docHasHardline(doc: Doc): boolean {
@@ -31,6 +32,22 @@ function docHasHardline(doc: Doc): boolean {
   }
 
   return false;
+}
+
+function docBreaks(doc: Doc): boolean {
+  if (Array.isArray(doc)) {
+    return doc.some(docBreaks);
+  }
+
+  if (typeof doc === 'object' && doc !== null && 'contents' in doc) {
+    return docBreaks((doc as { contents: Doc }).contents);
+  }
+
+  if (typeof doc === 'object' && doc !== null && 'parts' in doc) {
+    return docBreaks((doc as { parts: Doc[] }).parts);
+  }
+
+  return docHasHardline(doc) || willBreak(doc);
 }
 
 function getMaxEmptyLines(options: ParserOptions): number {
@@ -308,7 +325,8 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
   }
 
   const closing = node.selfClosing ? ifBreak('/>', ' />') : '>';
-  const openDoc = group(concat([openTag, attributesDoc, closing]));
+  const tagGroupId = Symbol('tag');
+  const openDoc = group(concat([openTag, attributesDoc, closing]), { id: tagGroupId });
 
   if (node.selfClosing) {
     return openDoc;
@@ -335,30 +353,46 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
     node.children.length === 1 &&
     childrenDocs.length === 1 &&
     singleChild?.type !== 'ElementNode' &&
-    !docHasHardline(openDoc) &&
-    !docHasHardline(childrenDocs[0]) &&
-    !docHasHardline(closeDoc) &&
+    !docBreaks(openDoc) &&
+    !docBreaks(childrenDocs[0]) &&
+    !docBreaks(closeDoc) &&
     !mustacheInsideBlock;
 
   if (canInline) {
-    return concat([openDoc, childrenDocs[0], closeDoc]);
+    const childDoc = childrenDocs[0];
+    return concat([
+      openDoc,
+      ifBreak(indent(concat([hardline, childDoc])), childDoc, { groupId: tagGroupId }),
+      ifBreak(hardline, '', { groupId: tagGroupId }),
+      closeDoc,
+    ]);
   }
 
   const canInlineSimpleChildren =
     simpleInlineChildren &&
-    !docHasHardline(openDoc) &&
-    !docHasHardline(closeDoc) &&
-    !childrenDocs.some(docHasHardline) &&
+    !docBreaks(openDoc) &&
+    !docBreaks(closeDoc) &&
+    !childrenDocs.some(docBreaks) &&
     !mustacheInsideBlock;
 
   if (canInlineSimpleChildren) {
-    return concat([openDoc, join(' ', childrenDocs), closeDoc]);
+    const inlineChildren = join(' ', childrenDocs);
+    const multilineChildren = indent(concat([hardline, join(hardline, childrenDocs)]));
+
+    return concat([
+      openDoc,
+      ifBreak(multilineChildren, inlineChildren, { groupId: tagGroupId }),
+      ifBreak(hardline, '', { groupId: tagGroupId }),
+      closeDoc,
+    ]);
   }
 
   const inner =
     childrenDocs.length > 0 ? concat([indent(concat([hardline, join(hardline, childrenDocs)])), hardline]) : '';
 
-  return concat([openDoc, inner, closeDoc]);
+  const expandedDoc = concat([openDoc, inner, closeDoc]);
+
+  return expandedDoc;
 }
 
 function printAttribute(attr: ElementAttribute): Doc {
