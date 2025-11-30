@@ -695,6 +695,44 @@ describe('inline child elements', () => {
     `));
   });
 
+  it('x', async () => {
+    const input = stripIndent(`
+											<p class="delivery-info-modal__list-item-title">Стационарные игровые приставки Бытовая техника, Мобильный транспорт</p>
+    `);
+
+    const output = await format(input, { printWidth: 80 });
+
+    expect(output).toBe(
+      stripIndentWithNL(`
+											<p class="delivery-info-modal__list-item-title">
+                        Стационарные игровые приставки Бытовая техника, Мобильный транспорт
+                      </p>
+      `),
+    );
+  });
+
+  it('x1', async () => {
+    const input = stripIndent(`
+											<p class="delivery-info-modal__list-item-title-2 delivery-info-modal__list-item-title-1 delivery-info-modal__list-item-title">Стационарные игровые приставки Бытовая техника, Мобильный транспорт</p>
+    `);
+
+    const output = await format(input, { printWidth: 80 });
+
+    expect(output).toBe(
+      stripIndentWithNL(`
+											<p 
+                        class="
+                          delivery-info-modal__list-item-title-2
+                          delivery-info-modal__list-item-title-1
+                          delivery-info-modal__list-item-title
+                        "
+                      >
+                        Стационарные игровые приставки Бытовая техника, Мобильный транспорт
+                      </p>
+      `),
+    );
+  });
+  
   it('moves the closing bracket to a new line when the opening tag wraps', async () => {
     const input = stripIndent(`
       <button class="modal__body-close-button button-primary-orange button" type="button" data-hystclose>Закрыть</button>
