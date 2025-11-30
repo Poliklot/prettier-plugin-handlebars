@@ -695,6 +695,26 @@ describe('inline child elements', () => {
     `));
   });
 
+  it('moves the closing bracket to a new line when the opening tag wraps', async () => {
+    const input = stripIndent(`
+      <button class="modal__body-close-button button-primary-orange button" type="button" data-hystclose>Закрыть</button>
+    `);
+
+    const output = await format(input, { printWidth: 80 });
+
+    expect(output).toBe(
+      stripIndentWithNL(`
+        <button
+          class="modal__body-close-button button-primary-orange button"
+          type="button"
+          data-hystclose
+        >
+          Закрыть
+        </button>
+      `),
+    );
+  });
+
   it.todo('breaks inline elements with verbose class names and inline partials');
   it.todo('preserves block formatting when inline partials are already on new lines');
   it.todo('wraps inline content that mixes text, <br>, and mustache output');
