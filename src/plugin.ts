@@ -39,3 +39,6 @@ export const options = {
     description: 'Maximum number of consecutive blank lines to preserve between nodes.',
   },
 };
+
+/* @todo */
+export const defaultOptions = {}
