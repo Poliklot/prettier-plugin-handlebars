@@ -1,4 +1,17 @@
-import { Program, Node, ElementAttribute, ElementNode, TextNode, MustacheStatement, BlockStatement, PartialStatement, CommentStatement, HashPair, ParseEndReason, UnmatchedNode } from './types';
+import {
+  Program,
+  Node,
+  ElementAttribute,
+  ElementNode,
+  TextNode,
+  MustacheStatement,
+  BlockStatement,
+  PartialStatement,
+  CommentStatement,
+  HashPair,
+  ParseEndReason,
+  UnmatchedNode,
+} from './types';
 
 interface ParseResult {
   nodes: Node[];
@@ -421,10 +434,63 @@ function parseTag(text: string, position: number):
 
     if (text.startsWith('{{', pos)) {
       const token = parseMustacheToken(text, pos);
-      const open = token.triple ? '{{{' : '{{';
-      const close = token.triple ? '}}}' : '}}';
-      const content = token.content;
-      attributes.push({ name: `${open}${content}${close}` });
+
+      // комментарий в голове тега
+      if (token.kind === 'comment') {
+        attributes.push({
+          type: 'AttributeBlock',
+          block: createComment(token.rawContent),
+        });
+        pos = token.end;
+        continue;
+      }
+
+      // partial в голове тега
+      if (token.kind === 'partial') {
+        attributes.push({
+          type: 'AttributeBlock',
+          block: createPartial(token.content),
+        });
+        pos = token.end;
+        continue;
+      }
+
+      // обычный {{ mustache }}
+      if (token.kind === 'mustache') {
+        attributes.push({
+          type: 'AttributeBlock',
+          block: createMustache(token.content, token.triple),
+        });
+        pos = token.end;
+        continue;
+      }
+
+      // {{#block}} ... {{/block}} в голове тега
+      if (token.kind === 'blockStart') {
+        if (!hasMatchingBlockEnd(text, token, pos)) {
+          // нет закрытия — считаем unmatched-куском
+          attributes.push({
+            type: 'AttributeBlock',
+            block: createMustache(token.content, token.triple),
+          });
+          pos = token.end;
+          continue;
+        }
+
+        const { node, next } = parseBlock(text, token);
+        attributes.push({
+          type: 'AttributeBlock',
+          block: node,
+        });
+        pos = next;
+        continue;
+      }
+
+      // else / blockEnd в голове тега — странный случай, но не ломаемся
+      attributes.push({
+        type: 'AttributeBlock',
+        block: createMustache(token.content, token.triple),
+      });
       pos = token.end;
       continue;
     }
@@ -471,29 +537,122 @@ function parseAttribute(text: string, position: number): { attribute: ElementAtt
 
   skipWhitespace(text, () => pos++, () => pos);
 
+  // boolean-атрибут: без "="
   if (text[pos] !== '=') {
-    return { attribute: { name }, position: pos };
+    return { attribute: createAttribute(name, null), position: pos };
   }
 
   pos += 1;
   skipWhitespace(text, () => pos++, () => pos);
 
-  let value = '';
+  let rawValue = '';
   if (text[pos] === '"' || text[pos] === "'") {
     const quote = text[pos];
     pos += 1;
     const end = text.indexOf(quote, pos);
-    value = text.slice(pos, end >= 0 ? end : undefined);
+    rawValue = text.slice(pos, end >= 0 ? end : undefined);
     pos = end >= 0 ? end + 1 : text.length;
   } else {
     const start = pos;
-    while (pos < text.length && !whitespace.test(text[pos]) && text[pos] !== '>' && text[pos] !== '/') {
+    while (
+      pos < text.length &&
+      !whitespace.test(text[pos]) &&
+      text[pos] !== '>' &&
+      text[pos] !== '/'
+    ) {
       pos += 1;
     }
-    value = text.slice(start, pos);
+    rawValue = text.slice(start, pos);
   }
 
-  return { attribute: { name, value }, position: pos };
+  return { attribute: createAttribute(name, rawValue), position: pos };
+}
+
+function createAttribute(name: string, rawValue: string | null): ElementAttribute {
+  if (rawValue == null) {
+    return {
+      type: 'Attribute',
+      name,
+      value: null,
+    };
+  }
+
+  const parts = parseAttributeValueParts(rawValue);
+
+  return {
+    type: 'Attribute',
+    name,
+    value: {
+      type: 'AttributeValue',
+      parts,
+    },
+  };
+}
+
+function parseAttributeValueParts(
+  value: string,
+): (TextNode | MustacheStatement | BlockStatement | PartialStatement | CommentStatement)[] {
+  const parts: (TextNode | MustacheStatement | BlockStatement | PartialStatement | CommentStatement)[] = [];
+  let pos = 0;
+
+  while (pos < value.length) {
+    if (value.startsWith('{{', pos)) {
+      const token = parseMustacheToken(value, pos);
+
+      // комментарий
+      if (token.kind === 'comment') {
+        parts.push(createComment(token.rawContent));
+        pos = token.end;
+        continue;
+      }
+
+      // partial
+      if (token.kind === 'partial') {
+        parts.push(createPartial(token.content));
+        pos = token.end;
+        continue;
+      }
+
+      // обычный mustache
+      if (token.kind === 'mustache') {
+        parts.push(createMustache(token.content, token.triple));
+        pos = token.end;
+        continue;
+      }
+
+      // блок {{#if ...}} ... {{/if}}
+      if (token.kind === 'blockStart') {
+        if (!hasMatchingBlockEnd(value, token, pos)) {
+          // не нашли закрытие — считаем текстом, чтобы не упасть
+          parts.push({ type: 'TextNode', value: value.slice(pos, token.end) } as TextNode);
+          pos = token.end;
+          continue;
+        }
+
+        const { node, next } = parseBlock(value, token);
+        parts.push(node);
+        pos = next;
+        continue;
+      }
+
+      // else / blockEnd — странные, но не ломаемся
+      parts.push({ type: 'TextNode', value: value.slice(pos, token.end) } as TextNode);
+      pos = token.end;
+      continue;
+    }
+
+    const next = value.indexOf('{{', pos);
+    const end = next === -1 ? value.length : next;
+    const rawText = value.slice(pos, end);
+
+    if (rawText.length > 0) {
+      parts.push({ type: 'TextNode', value: rawText } as TextNode);
+    }
+
+    pos = end;
+  }
+
+  return parts;
 }
 
 function skipWhitespace(text: string, advance: () => void, getPos: () => number) {

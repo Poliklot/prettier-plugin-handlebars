@@ -1,6 +1,18 @@
 import type { AstPath, Doc, ParserOptions, Printer } from 'prettier';
 import { builders, utils } from 'prettier/doc';
-import { BlockStatement, ElementAttribute, ElementNode, HashPair, MustacheStatement, Node, PartialStatement, Program, TextNode, UnmatchedNode } from './types';
+import {
+  AttributeValue,
+  BlockStatement,
+  ElementAttribute,
+  ElementNode,
+  HashPair,
+  MustacheStatement,
+  Node,
+  PartialStatement,
+  Program,
+  TextNode,
+  UnmatchedNode,
+} from './types';
 
 const { hardline, join, group, indent, line, softline, ifBreak, lineSuffix, lineSuffixBoundary } = builders;
 const { willBreak } = utils;
@@ -48,6 +60,10 @@ function docBreaks(doc: Doc): boolean {
   }
 
   return docHasHardline(doc) || willBreak(doc);
+}
+
+function isPlainAttribute(attr: ElementAttribute): attr is Extract<ElementAttribute, { type: 'Attribute' }> {
+  return attr.type === 'Attribute';
 }
 
 function getMaxEmptyLines(options: ParserOptions): number {
@@ -186,43 +202,33 @@ function printProgram(path: AstPath<Program>, options: ParserOptions, print: (pa
 function sortAttributes(attributes: ElementAttribute[], options: ParserOptions): ElementAttribute[] {
   const sorted: ElementAttribute[] = [];
   let buffer: ElementAttribute[] = [];
-  let blockDepth = 0;
 
-  const flush = (shouldSort: boolean) => {
+  const flush = () => {
     if (buffer.length === 0) return;
-    sorted.push(...(shouldSort ? sortPlainAttributes(buffer, options) : buffer));
+    sorted.push(...sortPlainAttributes(buffer, options));
     buffer = [];
   };
 
   attributes.forEach((attr) => {
-    const isHandlebars = attr.name.startsWith('{{');
-
-    if (!isHandlebars) {
-      buffer.push(attr);
+    if (!isPlainAttribute(attr)) {
+      flush();
+      sorted.push(attr);
       return;
     }
 
-    flush(blockDepth === 0);
-    sorted.push(attr);
-
-    if (attr.name.startsWith('{{#')) {
-      blockDepth += 1;
-    }
-
-    if (attr.name.startsWith('{{/')) {
-      blockDepth = Math.max(blockDepth - 1, 0);
-    }
+    buffer.push(attr);
   });
 
-  flush(blockDepth === 0);
+  flush();
 
   return sorted;
 }
 
 function sortPlainAttributes(attributes: ElementAttribute[], options: ParserOptions): ElementAttribute[] {
-  const others = attributes.filter((attr) => attr.name !== 'id' && attr.name !== 'class');
-  const idAttr = attributes.find((attr) => attr.name === 'id');
-  const classAttr = attributes.find((attr) => attr.name === 'class');
+  const plainAttributes = attributes.filter(isPlainAttribute);
+  const others = plainAttributes.filter((attr) => attr.name !== 'id' && attr.name !== 'class');
+  const idAttr = plainAttributes.find((attr) => attr.name === 'id');
+  const classAttr = plainAttributes.find((attr) => attr.name === 'class');
   const ordered: ElementAttribute[] = [];
   if (idAttr) ordered.push(idAttr);
   if (classAttr) ordered.push(classAttr);
@@ -252,42 +258,28 @@ function sortPlainAttributes(attributes: ElementAttribute[], options: ParserOpti
 
 function buildAttributeDocs(attributes: ElementAttribute[]): Doc[] {
   const docs: Doc[] = [];
-  let depth = 0;
-
   attributes.forEach((attr) => {
-    const isBlockStart = attr.name.startsWith('{{#');
-    const isBlockEnd = attr.name.startsWith('{{/');
-    const isElse = attr.name.startsWith('{{else');
-
-    if (isBlockEnd || isElse) {
-      depth = Math.max(depth - 1, 0);
-    }
-
-    const paddedDoc = depth > 0 ? concat(['  '.repeat(depth), printAttribute(attr)]) : printAttribute(attr);
-    docs.push(paddedDoc);
-
-    if (isBlockStart || isElse) {
-      depth += 1;
-    }
+    docs.push(printAttribute(attr));
   });
 
   return docs;
 }
 
 function shouldBreakAttribute(attr: ElementAttribute): boolean {
-  if (attr.name.startsWith('{{')) {
+  if (!isPlainAttribute(attr)) {
     return true;
   }
 
-  if (typeof attr.value === 'string' && hasHandlebarsBlock(attr.value)) {
+  if (!attr.value) {
+    return false;
+  }
+
+  if (attr.value.parts.some((part) => part.type === 'BlockStatement' || part.type === 'CommentStatement')) {
     return true;
   }
 
-  if (typeof attr.value === 'string' && /\n/.test(attr.value)) {
-    return true;
-  }
-
-  if (attr.name === 'class' && typeof attr.value === 'string' && /{{[#/^]/.test(attr.value)) {
+  const hasNewlineText = attr.value.parts.some((part) => part.type === 'TextNode' && /\n/.test(part.value));
+  if (hasNewlineText) {
     return true;
   }
 
@@ -396,16 +388,22 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
 }
 
 function printAttribute(attr: ElementAttribute): Doc {
-  if (typeof attr.value === 'undefined') {
+  if (!isPlainAttribute(attr)) {
+    return stringifyNode(attr.block as Node);
+  }
+
+  if (typeof attr.value === 'undefined' || attr.value === null) {
     return attr.name;
   }
 
-  if (attr.value === '' && attr.name.startsWith('data-')) {
+  const valueString = stringifyAttributeValue(attr.value as AttributeValue);
+
+  if (valueString === '' && attr.name.startsWith('data-')) {
     return attr.name;
   }
 
-  if (attr.name === 'class' && /{{#/.test(attr.value)) {
-    const classLines = formatClassValue(attr.value);
+  if (attr.name === 'class' && /{{#/.test(valueString)) {
+    const classLines = formatClassValue(valueString);
     return concat([
       'class="',
       indent(concat([hardline, join(hardline, classLines)])),
@@ -414,8 +412,8 @@ function printAttribute(attr: ElementAttribute): Doc {
     ]);
   }
 
-  if (typeof attr.value === 'string' && hasHandlebarsBlock(attr.value)) {
-    const lines = formatHandlebarsBlockValue(attr.value);
+  if (hasHandlebarsBlock(valueString)) {
+    const lines = formatHandlebarsBlockValue(valueString);
     return concat([
       attr.name,
       '="',
@@ -425,8 +423,8 @@ function printAttribute(attr: ElementAttribute): Doc {
     ]);
   }
 
-  if (typeof attr.value === 'string' && attr.value.includes('\n')) {
-    const lines = formatMultilineAttributeValue(attr.value);
+  if (valueString.includes('\n')) {
+    const lines = formatMultilineAttributeValue(valueString);
     return concat([
       attr.name,
       '="',
@@ -436,7 +434,74 @@ function printAttribute(attr: ElementAttribute): Doc {
     ]);
   }
 
-  return concat([attr.name, '="', attr.value, '"']);
+  return concat([attr.name, '="', valueString, '"']);
+}
+
+function stringifyAttributeValue(value: AttributeValue): string {
+  return value.parts.map((part) => stringifyNode(part as Node)).join('');
+}
+
+function stringifyAttribute(attr: ElementAttribute): string {
+  if (!isPlainAttribute(attr)) {
+    return stringifyNode(attr.block as Node);
+  }
+
+  if (!attr.value) {
+    return attr.name;
+  }
+
+  const value = stringifyAttributeValue(attr.value as AttributeValue);
+  return `${attr.name}="${value}"`;
+}
+
+function stringifyNode(node: Node): string {
+  switch (node.type) {
+    case 'TextNode':
+      return (node as TextNode).value;
+    case 'MustacheStatement': {
+      const mustache = node as MustacheStatement;
+      const open = mustache.triple ? '{{{' : '{{';
+      const close = mustache.triple ? '}}}' : '}}';
+      return `${open}${buildExpression(mustache)}${close}`;
+    }
+    case 'PartialStatement': {
+      const partial = node as PartialStatement;
+      return `{{> ${buildExpression(partial)}}}`;
+    }
+    case 'CommentStatement': {
+      const comment = node as CommentStatement;
+      if (comment.block || comment.multiline) {
+        return `{{!-- ${comment.value} --}}`;
+      }
+      return `{{! ${comment.value}}}`;
+    }
+    case 'BlockStatement': {
+      const block = node as BlockStatement;
+      const open = `{{${block.rawOpen}}}`;
+      const program = block.program.map((child) => stringifyNode(child as Node)).join('');
+      const inverse = block.inverse.length > 0
+        ? `{{else}}${block.inverse.map((child) => stringifyNode(child as Node)).join('')}`
+        : '';
+      const close = `{{/${block.path}}}`;
+      return `${open}${program}${inverse}${close}`;
+    }
+    case 'ElementNode': {
+      const element = node as ElementNode;
+      const attrs = element.attributes.map((attr) => stringifyAttribute(attr)).join(' ');
+      const open = attrs ? `<${element.tag} ${attrs}${element.selfClosing ? ' />' : '>'}` : `<${element.tag}${element.selfClosing ? ' />' : '>'}`;
+      if (element.selfClosing) {
+        return open;
+      }
+      const children = element.children.map((child) => stringifyNode(child as Node)).join('');
+      return `${open}${children}</${element.tag}>`;
+    }
+    case 'Program':
+      return (node as Program).body.map((child) => stringifyNode(child as Node)).join('');
+    case 'UnmatchedNode':
+      return (node as UnmatchedNode).raw;
+    default:
+      return '';
+  }
 }
 
 function formatClassValue(value: string): Doc[] {
