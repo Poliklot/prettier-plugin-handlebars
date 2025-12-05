@@ -170,7 +170,9 @@ describe('Mustache in HTML attributes', () => {
         expect.objectContaining({
           type: 'BlockStatement',
           path: 'if',
-          program: expect.any(Array)
+          program: expect.objectContaining({
+            type: 'Program'
+          })
         })
       ])
     );
