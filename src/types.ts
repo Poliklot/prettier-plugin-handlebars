@@ -60,6 +60,7 @@ export interface MustacheBase {
   path: string;
   params: string[];
   hash: HashPair[];
+  blockParams?: string[];
 }
 
 export interface MustacheStatement extends MustacheBase {
@@ -69,8 +70,8 @@ export interface MustacheStatement extends MustacheBase {
 
 export interface BlockStatement extends MustacheBase {
   type: 'BlockStatement';
-  program: Node[];
-  inverse: Node[];
+  program: Program;
+  inverse: Program;
   rawOpen: string;
 }
 

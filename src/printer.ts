@@ -478,9 +478,9 @@ function stringifyNode(node: Node): string {
     case 'BlockStatement': {
       const block = node as BlockStatement;
       const open = `{{${block.rawOpen}}}`;
-      const program = block.program.map((child) => stringifyNode(child as Node)).join('');
-      const inverse = block.inverse.length > 0
-        ? `{{else}}${block.inverse.map((child) => stringifyNode(child as Node)).join('')}`
+      const program = stringifyNode(block.program as Program);
+      const inverse = block.inverse.body.length > 0
+        ? `{{else}}${stringifyNode(block.inverse as Program)}`
         : '';
       const close = `{{/${block.path}}}`;
       return `${open}${program}${inverse}${close}`;
@@ -591,26 +591,8 @@ function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print
   const node = path.getValue();
   const open = concat(['{{#', buildExpression(node), '}}']);
   const bodyDocs: Doc[] = [];
-  path.each((childPath) => {
-    const childNode = childPath.getValue() as Node;
-    if (childNode.type === 'TextNode' && childNode.blankLines && getMaxEmptyLines(options) === 0) {
-      return;
-    }
-
-    const doc = print(childPath as AstPath<Node>);
-    if (doc === null) {
-      return;
-    }
-    bodyDocs.push(doc);
-  }, 'program');
-
-  const body =
-    bodyDocs.length > 0 ? concat([indent(concat([hardline, join(hardline, bodyDocs)])), hardline]) : hardline;
-
-  let inverse: Doc = '';
-  if (node.inverse.length > 0) {
-    const inverseDocs: Doc[] = [];
-    path.each((childPath) => {
+  path.call((programPath) => {
+    programPath.each((childPath) => {
       const childNode = childPath.getValue() as Node;
       if (childNode.type === 'TextNode' && childNode.blankLines && getMaxEmptyLines(options) === 0) {
         return;
@@ -620,7 +602,29 @@ function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print
       if (doc === null) {
         return;
       }
-      inverseDocs.push(doc);
+      bodyDocs.push(doc);
+    }, 'body');
+  }, 'program');
+
+  const body =
+    bodyDocs.length > 0 ? concat([indent(concat([hardline, join(hardline, bodyDocs)])), hardline]) : hardline;
+
+  let inverse: Doc = '';
+  if (node.inverse.body.length > 0) {
+    const inverseDocs: Doc[] = [];
+    path.call((inversePath) => {
+      inversePath.each((childPath) => {
+        const childNode = childPath.getValue() as Node;
+        if (childNode.type === 'TextNode' && childNode.blankLines && getMaxEmptyLines(options) === 0) {
+          return;
+        }
+
+        const doc = print(childPath as AstPath<Node>);
+        if (doc === null) {
+          return;
+        }
+        inverseDocs.push(doc);
+      }, 'body');
     }, 'inverse');
     inverse = concat(['{{else}}', indent(concat([hardline, join(hardline, inverseDocs)])), hardline]);
   }
@@ -744,6 +748,9 @@ function buildExpression(node: MustacheStatement | BlockStatement | PartialState
   }
   if (node.params.length > 0) {
     pieces.push(...node.params);
+  }
+  if (node.blockParams && node.blockParams.length > 0) {
+    pieces.push('as', `|${node.blockParams.join(' ')}|`);
   }
   if (node.hash.length > 0) {
     pieces.push(...node.hash.map((pair) => formatHash(pair)));
