@@ -220,14 +220,15 @@ function hasMatchingBlockEnd(text: string, token: MustacheToken, start: number):
 function parseBlock(text: string, token: MustacheToken): { node: BlockStatement; next: number } {
   const openInfo = parseExpression(token.content.slice(1));
   const { nodes: program, position: afterProgram, endReason } = parseChildren(text, token.end, null, openInfo.path);
-  const trimmedProgram = trimEdgeWhitespace(program);
+  const buildProgram = (nodes: Node[]): Program => ({ type: 'Program', body: trimEdgeWhitespace(nodes) });
+  const programBody = buildProgram(program);
 
-  let inverseBody: Node[] = [];
+  let inverseBody: Program = { type: 'Program', body: [] };
   let finalPos = afterProgram;
 
   if (endReason === 'else') {
     const { nodes: inverseNodes, position: afterInverse } = parseChildren(text, afterProgram, null, openInfo.path);
-    inverseBody = trimEdgeWhitespace(inverseNodes);
+    inverseBody = buildProgram(inverseNodes);
     finalPos = afterInverse;
   }
 
@@ -242,8 +243,8 @@ function parseBlock(text: string, token: MustacheToken): { node: BlockStatement;
 
   const node: BlockStatement = {
     type: 'BlockStatement',
-    program: { type: 'Program', body: trimmedProgram },
-    inverse: { type: 'Program', body: inverseBody },
+    program: programBody,
+    inverse: inverseBody,
     rawOpen: token.content,
     ...expression,
   };
