@@ -389,6 +389,10 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
 
 function printAttribute(attr: ElementAttribute): Doc {
   if (!isPlainAttribute(attr)) {
+    if ((attr.block as Node).type === 'BlockStatement') {
+      return printAttributeBlock(attr.block as BlockStatement);
+    }
+
     return stringifyNode(attr.block as Node);
   }
 
@@ -437,6 +441,23 @@ function printAttribute(attr: ElementAttribute): Doc {
   return concat([attr.name, '="', valueString, '"']);
 }
 
+function printAttributeBlock(block: BlockStatement): Doc {
+  const open = concat(['{{', block.rawOpen, '}}']);
+  const bodyDocs = block.program.body.map((child) => stringifyNode(child as Node));
+  const body =
+    bodyDocs.length > 0 ? concat([indent(concat([hardline, join(hardline, bodyDocs)])), hardline]) : hardline;
+
+  let inverse: Doc = '';
+  if (block.inverse.body.length > 0) {
+    const inverseDocs = block.inverse.body.map((child) => stringifyNode(child as Node));
+    inverse = concat(['{{else}}', indent(concat([hardline, join(hardline, inverseDocs)])), hardline]);
+  }
+
+  const close = concat(['{{/', block.path, '}}']);
+
+  return concat([open, body, inverse, close]);
+}
+
 function stringifyAttributeValue(value: AttributeValue): string {
   return value.parts.map((part) => stringifyNode(part as Node)).join('');
 }
@@ -462,7 +483,9 @@ function stringifyNode(node: Node): string {
       const mustache = node as MustacheStatement;
       const open = mustache.triple ? '{{{' : '{{';
       const close = mustache.triple ? '}}}' : '}}';
-      return `${open}${buildExpression(mustache)}${close}`;
+      const content = buildExpression(mustache);
+      const spacing = content.length > 0 ? ' ' : '';
+      return `${open}${spacing}${content}${spacing}${close}`;
     }
     case 'PartialStatement': {
       const partial = node as PartialStatement;
