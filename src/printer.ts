@@ -345,9 +345,9 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
     node.children.length === 1 &&
     childrenDocs.length === 1 &&
     singleChild?.type !== 'ElementNode' &&
-    !docBreaks(openDoc) &&
-    !docBreaks(childrenDocs[0]) &&
-    !docBreaks(closeDoc) &&
+    !docHasHardline(openDoc) &&
+    !docHasHardline(childrenDocs[0]) &&
+    !docHasHardline(closeDoc) &&
     !mustacheInsideBlock;
 
   if (canInline) {
@@ -362,9 +362,9 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
 
   const canInlineSimpleChildren =
     simpleInlineChildren &&
-    !docBreaks(openDoc) &&
-    !docBreaks(closeDoc) &&
-    !childrenDocs.some(docBreaks) &&
+    !docHasHardline(openDoc) &&
+    !docHasHardline(closeDoc) &&
+    !childrenDocs.some(docHasHardline) &&
     !mustacheInsideBlock;
 
   if (canInlineSimpleChildren) {
@@ -484,8 +484,7 @@ function stringifyNode(node: Node): string {
       const open = mustache.triple ? '{{{' : '{{';
       const close = mustache.triple ? '}}}' : '}}';
       const content = buildExpression(mustache);
-      const spacing = content.length > 0 ? ' ' : '';
-      return `${open}${spacing}${content}${spacing}${close}`;
+      return `${open}${content}${close}`;
     }
     case 'PartialStatement': {
       const partial = node as PartialStatement;
