@@ -222,12 +222,12 @@ function parseBlock(text: string, token: MustacheToken): { node: BlockStatement;
   const { nodes: program, position: afterProgram, endReason } = parseChildren(text, token.end, null, openInfo.path);
   const trimmedProgram = trimEdgeWhitespace(program);
 
-  let inverse: Node[] = [];
+  let inverseBody: Node[] = [];
   let finalPos = afterProgram;
 
   if (endReason === 'else') {
     const { nodes: inverseNodes, position: afterInverse } = parseChildren(text, afterProgram, null, openInfo.path);
-    inverse = trimEdgeWhitespace(inverseNodes);
+    inverseBody = trimEdgeWhitespace(inverseNodes);
     finalPos = afterInverse;
   }
 
@@ -242,8 +242,8 @@ function parseBlock(text: string, token: MustacheToken): { node: BlockStatement;
 
   const node: BlockStatement = {
     type: 'BlockStatement',
-    program: trimmedProgram,
-    inverse,
+    program: { type: 'Program', body: trimmedProgram },
+    inverse: { type: 'Program', body: inverseBody },
     rawOpen: token.content,
     ...expression,
   };
@@ -682,17 +682,37 @@ function findNextMarkup(text: string, position: number): number {
 function parseExpression(content: string): MustacheStatement {
   const triple = false;
   const normalized = normalizeExpression(content);
-  const tokens = tokenize(normalized);
+  const { expression, blockParams } = extractBlockParams(normalized);
+  const tokens = tokenize(expression);
   const path = tokens.shift() || '';
   const { params, hash } = splitParams(tokens);
 
-  return {
+  const result: MustacheStatement = {
     type: 'MustacheStatement',
     path,
     params,
     hash,
     triple,
   };
+
+  if (blockParams.length > 0) {
+    result.blockParams = blockParams;
+  }
+
+  return result;
+}
+
+function extractBlockParams(content: string): { expression: string; blockParams: string[] } {
+  const match = content.match(/\s+as\s+\|([^|]*)\|/);
+
+  if (!match) {
+    return { expression: content, blockParams: [] };
+  }
+
+  const blockParams = match[1].split(/\s+/).filter(Boolean);
+  const expression = content.replace(match[0], '').trim();
+
+  return { expression, blockParams };
 }
 
 function createMustache(content: string, triple: boolean): MustacheStatement {
