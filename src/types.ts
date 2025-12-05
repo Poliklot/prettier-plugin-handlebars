@@ -13,10 +13,28 @@ export interface Program {
   body: Node[];
 }
 
-export interface ElementAttribute {
-  name: string;
-  value?: string;
+export interface AttributeValue {
+  type: 'AttributeValue';
+  parts: AttributeValuePart[];
 }
+
+export type AttributeValuePart =
+  | TextNode
+  | MustacheStatement
+  | BlockStatement
+  | PartialStatement
+  | CommentStatement;
+
+export type ElementAttribute =
+  | {
+      type: 'Attribute';
+      name: string;
+      value?: AttributeValue | null;
+    }
+  | {
+      type: 'AttributeBlock';
+      block: MustacheStatement | BlockStatement | PartialStatement | CommentStatement;
+    };
 
 export interface ElementNode {
   type: 'ElementNode';

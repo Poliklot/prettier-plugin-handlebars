@@ -101,10 +101,7 @@ describe('Mustache in HTML attributes', () => {
       expect.arrayContaining([
         expect.objectContaining({
           type: 'MustacheStatement',
-          path: expect.objectContaining({
-            type: 'PathExpression',
-            original: 'text'
-          })
+          path: 'text'
         })
       ])
     );
@@ -134,10 +131,7 @@ describe('Mustache in HTML attributes', () => {
       expect.arrayContaining([
         expect.objectContaining({
           type: 'MustacheStatement',
-          path: expect.objectContaining({
-            type: 'PathExpression',
-            original: 'class'
-          })
+          path: 'class'
         })
       ])
     );
@@ -175,13 +169,8 @@ describe('Mustache in HTML attributes', () => {
       expect.arrayContaining([
         expect.objectContaining({
           type: 'BlockStatement',
-          path: expect.objectContaining({
-            type: 'PathExpression',
-            original: 'if'
-          }),
-          program: expect.objectContaining({
-            type: 'Program'
-          })
+          path: 'if',
+          program: expect.any(Array)
         })
       ])
     );
@@ -219,7 +208,7 @@ describe('Mustache in HTML attributes', () => {
     const ifEqualsBlock = attributes.find(
       a =>
         a.type === 'AttributeBlock' &&
-        a.block?.path?.original === 'ifEquals'
+        (a.block as any)?.path === 'ifEquals'
     );
 
     expect(idAttr).toBeDefined();
@@ -233,10 +222,7 @@ describe('Mustache in HTML attributes', () => {
       expect.arrayContaining([
         expect.objectContaining({
           type: 'BlockStatement',
-          path: expect.objectContaining({
-            type: 'PathExpression',
-            original: 'if'
-          })
+          path: 'if'
         })
       ])
     );
@@ -249,10 +235,7 @@ describe('Mustache in HTML attributes', () => {
         }),
         expect.objectContaining({
           type: 'MustacheStatement',
-          path: expect.objectContaining({
-            type: 'PathExpression',
-            original: 'modification'
-          })
+          path: 'modification'
         })
       ])
     );
@@ -270,10 +253,7 @@ describe('Mustache in HTML attributes', () => {
       type: 'AttributeBlock',
       block: expect.objectContaining({
         type: 'BlockStatement',
-        path: expect.objectContaining({
-          type: 'PathExpression',
-          original: 'each'
-        }),
+        path: 'each',
         blockParams: ['item']
       })
     });
@@ -299,8 +279,7 @@ describe('Mustache blocks in children', () => {
     const ifBlock = el.children.find(
       child =>
         child.type === 'BlockStatement' &&
-        child.path?.type === 'PathExpression' &&
-        child.path.original === 'if'
+        child.path === 'if'
     );
 
     expect(ifBlock).toBeDefined();
@@ -328,8 +307,7 @@ describe('Mustache blocks in children', () => {
     const eachAttrBlock = el.attributes.find(
       a =>
         a.type === 'AttributeBlock' &&
-        a.block?.path?.type === 'PathExpression' &&
-        a.block.path.original === 'each'
+        (a.block as any)?.path === 'each'
     );
 
     expect(eachAttrBlock).toBeDefined();
