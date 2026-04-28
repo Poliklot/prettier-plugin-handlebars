@@ -82,7 +82,7 @@ describe('attribute quotes and trim markers', () => {
 
     expect(output).toBe(stripIndentWithNL(`
       <div
-        {{~ helper active ~}}
+        {{~helper active ~}}
       ></div>
     `));
   });
@@ -371,7 +371,7 @@ describe('inline text adjacency', () => {
   it('does not insert spaces before punctuation after mustaches', async () => {
     const input = `<li>{{subtract stars.items.length 2}}+</li>`;
     const output = await format(input);
-    expect(output).toBe(stripIndentWithNL(`<li>{{ subtract stars.items.length 2 }}+</li>`));
+    expect(output).toBe(stripIndentWithNL(`<li>{{subtract stars.items.length 2}}+</li>`));
   });
 
   it('does not pad mustaches inside quotes', async () => {
@@ -539,6 +539,23 @@ describe('mustache spacing', () => {
     expect(output).toBe(stripIndentWithNL('{{ value }}'));
   });
 
+  it('pads simple values but keeps helper calls tight', async () => {
+    const input = stripIndent(`
+      {{value}}
+      {{ foo-bar arg=this.foo ~}}
+      {{ assign foo=bar }}
+      {{~value~}}
+    `);
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{ value }}
+      {{foo-bar arg=this.foo ~}}
+      {{assign foo=bar}}
+      {{~ value ~}}
+    `));
+  });
+
   it('removes trailing space before block close', async () => {
     const input = '{{#if item }}{{/if}}';
     const output = await format(input);
@@ -559,7 +576,7 @@ describe('helpers with hash pairs', () => {
     `;
     const output = await format(input);
     expect(output).toBe(stripIndentWithNL(`
-      {{ assign
+      {{assign
         headTitle="Lorem ipsum | Page title"
         headDescription="Placeholder description"
       }}

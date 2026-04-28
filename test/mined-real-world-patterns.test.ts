@@ -260,11 +260,11 @@ describe('formatter coverage from mined anonymized patterns', () => {
 
   it('wraps JSON-like data attributes with nested helper expressions', async () => {
     await expectStableFormat(
-      `<button type=button data-payload='{"ids": {{ JSONstringify (map dataA.tabs.[0].items "x => x.id") }}, "flag": true}'></button>`,
+      `<button type=button data-payload='{"ids": {{JSONstringify (map dataA.tabs.[0].items "x => x.id")}}, "flag": true}'></button>`,
       `
         <button
           type="button"
-          data-payload='{"ids": {{ JSONstringify (map dataA.tabs.[0].items "x => x.id") }}, "flag": true}'
+          data-payload='{"ids": {{JSONstringify (map dataA.tabs.[0].items "x => x.id")}}, "flag": true}'
         ></button>
       `,
       { printWidth: 70 },
@@ -341,14 +341,14 @@ describe('formatter coverage from mined anonymized patterns', () => {
   it('formats setVar-style statements with quoted names and nested helper calls', async () => {
     await expectStableFormat(
       "{{setVar 'valueA' (getA itemA @root.mapA)}}",
-      "{{ setVar 'valueA' (getA itemA @root.mapA) }}",
+      "{{setVar 'valueA' (getA itemA @root.mapA)}}",
     );
   });
 
   it('formats assign helpers with nested concatArrays and parseJSON chains stably', async () => {
     await expectStableFormat(
       `{{assign typeListA=(concatArrays (array (parseJSON (concat '{ "id": "all", "value": "all", "name": "All" }'))) sourceListA)}}`,
-      `{{ assign typeListA=(concatArrays (array (parseJSON (concat '{ "id": "all", "value": "all", "name": "All" }'))) sourceListA) }}`,
+      `{{assign typeListA=(concatArrays (array (parseJSON (concat '{ "id": "all", "value": "all", "name": "All" }'))) sourceListA)}}`,
     );
   });
 
@@ -800,7 +800,7 @@ describe('schema and data payload coverage from mined patterns', () => {
         ]
       ')}}`,
       `
-        {{ setVar "listA" (parseJSON '
+        {{setVar "listA" (parseJSON '
                 [
                   {
                     "name": "A",
@@ -816,7 +816,7 @@ describe('schema and data payload coverage from mined patterns', () => {
                     ]
                   }
                 ]
-              ') }}
+              ')}}
       `,
     );
   });
@@ -973,7 +973,7 @@ describe('full document and compound attribute coverage from mined patterns', ()
             <meta charset="utf-8" />
             <title>{{ projectA }}</title>
           </head>
-          {{ setVar "listA" (parseJSON '[{"name":"A","href":"/a"},{"name":"B","items":[{"name":"C","href":"/c"}]}]') }}
+          {{setVar "listA" (parseJSON '[{"name":"A","href":"/a"},{"name":"B","items":[{"name":"C","href":"/c"}]}]')}}
           <body class="page-a">
             <ul>
               {{#each listA}}
@@ -1046,7 +1046,7 @@ describe('style helper coverage from mined patterns', () => {
               dot-a--on
             {{/ifEquals}}
           "
-          style="{{ transformStyleA ../activeA @index }}"
+          style="{{transformStyleA ../activeA @index}}"
         >
           <span></span>
         </div>

@@ -930,11 +930,13 @@ function stringifyMustacheForAttribute(node: MustacheStatement): string {
   const content = pieces.join(' ');
   const open = node.triple ? '{{{' : '{{';
   const close = node.triple ? '}}}' : '}}';
-  const spacing = content.length > 0 ? ' ' : '';
   const trimOpen = node.trimOpen ? '~' : '';
   const trimClose = node.trimClose ? '~' : '';
+  const isSimpleValue = node.params.length === 0 && node.hash.length === 0 && (!node.blockParams || node.blockParams.length === 0);
+  const openPadding = content.length > 0 && isSimpleValue ? ' ' : '';
+  const closePadding = content.length > 0 && isSimpleValue ? ' ' : node.trimClose && /\s/.test(content) ? ' ' : '';
 
-  return `${open}${trimOpen}${spacing}${content}${spacing}${trimClose}${close}`;
+  return `${open}${trimOpen}${openPadding}${content}${closePadding}${trimClose}${close}`;
 }
 
 function parseAttributeValueParts(

@@ -197,12 +197,12 @@ export const readyCases: ConformanceCase[] = [
     priority: 'release-blocker',
     rationale: 'Block trim markers must not be normalized away.',
     source: stripIndent(`
-      {{~#if show~}}
+      {{~#if show ~}}
         <span>{{~ value ~}}</span>
       {{~/if~}}
     `),
     expected: withTrailingNewline(`
-      {{~#if show~}}
+      {{~#if show ~}}
         <span>
           {{~ value ~}}
         </span>

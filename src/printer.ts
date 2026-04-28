@@ -76,6 +76,26 @@ function getTrimClose(node: MustacheStatement | BlockStatement | PartialStatemen
   return node.trimClose ? '~' : '';
 }
 
+function isSimpleValueMustache(node: MustacheStatement): boolean {
+  return node.params.length === 0 && node.hash.length === 0 && (!node.blockParams || node.blockParams.length === 0);
+}
+
+function getMustacheOpenPadding(node: MustacheStatement, content: string): string {
+  return content.length > 0 && isSimpleValueMustache(node) ? ' ' : '';
+}
+
+function getMustacheClosePadding(node: MustacheStatement, content: string): string {
+  if (content.length > 0 && isSimpleValueMustache(node)) {
+    return ' ';
+  }
+
+  return node.trimClose && /\s/.test(content) ? ' ' : '';
+}
+
+function getTrimClosePadding(node: BlockStatement | PartialStatement, content: string): string {
+  return node.trimClose && /\s/.test(content) ? ' ' : '';
+}
+
 function getBlockPrefix(node: BlockStatement): '#' | '#>' | '#*' {
   return node.blockPrefix ?? '#';
 }
@@ -895,7 +915,8 @@ function stringifyNode(node: Node): string {
       const block = node as BlockStatement;
       const prefix = getBlockPrefix(block);
       const printedPrefix = prefix === '#>' ? '#> ' : prefix;
-      const open = `{{${getTrimOpen(block)}${printedPrefix}${buildExpression(block)}${getTrimClose(block)}}}`;
+      const expression = buildExpression(block);
+      const open = `{{${getTrimOpen(block)}${printedPrefix}${expression}${getTrimClosePadding(block, expression)}${getTrimClose(block)}}}`;
       const program = stringifyNode(block.program as Program);
       const inverse = block.inverse.body.length > 0
         ? `{{else}}${stringifyNode(block.inverse as Program)}`
@@ -1052,9 +1073,8 @@ function stringifyMustache(node: MustacheStatement): string {
   const open = node.triple ? '{{{' : '{{';
   const close = node.triple ? '}}}' : '}}';
   const content = buildExpression(node);
-  const spacing = content.length > 0 ? ' ' : '';
 
-  return `${open}${getTrimOpen(node)}${spacing}${content}${spacing}${getTrimClose(node)}${close}`;
+  return `${open}${getTrimOpen(node)}${getMustacheOpenPadding(node, content)}${content}${getMustacheClosePadding(node, content)}${getTrimClose(node)}${close}`;
 }
 
 function printMustache(node: MustacheStatement): Doc {
@@ -1073,7 +1093,6 @@ function printMustache(node: MustacheStatement): Doc {
       concat([
         open,
         getTrimOpen(node),
-        ' ',
         node.path,
         indent(concat([hardline, join(hardline, paramsDocs)])),
         hardline,
@@ -1083,8 +1102,15 @@ function printMustache(node: MustacheStatement): Doc {
     );
   }
 
-  const spacing = content.length > 0 ? ' ' : '';
-  return concat([open, getTrimOpen(node), spacing, content, spacing, getTrimClose(node), close]);
+  return concat([
+    open,
+    getTrimOpen(node),
+    getMustacheOpenPadding(node, content),
+    content,
+    getMustacheClosePadding(node, content),
+    getTrimClose(node),
+    close,
+  ]);
 }
 
 function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {
@@ -1159,7 +1185,15 @@ function printBlockOpen(node: BlockStatement): Doc {
     ]);
   }
 
-  return concat(['{{', getTrimOpen(node), printedPrefix, expression, getTrimClose(node), '}}']);
+  return concat([
+    '{{',
+    getTrimOpen(node),
+    printedPrefix,
+    expression,
+    getTrimClosePadding(node, expression),
+    getTrimClose(node),
+    '}}',
+  ]);
 }
 
 function printBlockClose(node: BlockStatement): Doc {
