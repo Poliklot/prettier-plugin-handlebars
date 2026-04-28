@@ -25,22 +25,30 @@ npm install --save-dev prettier @poliklot/prettier-plugin-handlebars
 
 ## Quick Start
 
-Minimal config:
+Recommended config:
 
 ```js
 /** @type {import("prettier").Config} */
 module.exports = {
   plugins: ["@poliklot/prettier-plugin-handlebars"],
+  overrides: [
+    {
+      files: ["*.hbs", "*.handlebars"],
+      options: {
+        parser: "handlebars",
+      },
+    },
+  ],
 };
 ```
 
-Once the plugin is loaded, Prettier can infer `.hbs` and `.handlebars` files by extension.
+The explicit override keeps `.hbs` files on this plugin even in Prettier versions that also know about other Handlebars-like parsers.
 
 ## Configuration Patterns
 
 ### 1. Minimal plugin setup
 
-Use this when your editor already resolves the plugin correctly.
+Use this only when you have verified that your Prettier version and editor resolve `.hbs` files to this plugin. The explicit override below is safer for shared projects.
 
 ```js
 /** @type {import("prettier").Config} */
@@ -135,13 +143,13 @@ module.exports = {
 Published package:
 
 ```bash
-npx prettier --write "src/**/*.{hbs,handlebars}" --plugin @poliklot/prettier-plugin-handlebars
+npx prettier --write "src/**/*.{hbs,handlebars}" --plugin @poliklot/prettier-plugin-handlebars --parser handlebars
 ```
 
 Local plugin build:
 
 ```bash
-npx prettier --write "src/**/*.{hbs,handlebars}" --plugin ../prettier-plugin-handlebars/dist/plugin.js
+npx prettier --write "src/**/*.{hbs,handlebars}" --plugin ../prettier-plugin-handlebars/dist/plugin.js --parser handlebars
 ```
 
 ## API
@@ -225,6 +233,7 @@ Useful scripts:
 - `npm test` - run the full automated suite
 - `npm run check` - build + test
 - `npm run corpus:check -- <path> [more-paths...]` - run an idempotence / crash-safety sweep over real template corpora
+- `PRETTIER_VERSION=3.2 npm run smoke:install` - pack the plugin, install it into a clean temp project, format a sample, and verify that `handlebars` is not installed
 - `npm run pack:check` - inspect npm package contents with `npm pack --dry-run`
 
 ## VS Code Companion

@@ -13,6 +13,7 @@ permissions:
 
 jobs:
   test:
+    name: Node ${{ matrix.node-version }} / Prettier ${{ matrix.prettier-version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -20,6 +21,11 @@ jobs:
         node-version:
           - 18
           - 20
+          - 22
+        prettier-version:
+          - "3.0"
+          - "3.2"
+          - latest
 
     steps:
       - name: Checkout
@@ -33,11 +39,22 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build
-        run: npm run build
+      - name: Install matrix Prettier
+        run: npm install --save-dev --no-save prettier@${{ matrix.prettier-version }}
 
-      - name: Test
-        run: npm test
+      - name: Print versions
+        run: |
+          node --version
+          npm --version
+          node -e "console.log(require('prettier/package.json').version)"
+
+      - name: Check
+        run: npm run check
 
       - name: Inspect package contents
         run: npm run pack:check
+
+      - name: Install smoke
+        run: npm run smoke:install
+        env:
+          PRETTIER_VERSION: ${{ matrix.prettier-version }}
