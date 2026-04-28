@@ -117,7 +117,7 @@ function isRawAttribute(attr: ElementAttribute): attr is Extract<ElementAttribut
 }
 
 function getMaxEmptyLines(options: ParserOptions): number {
-  const rawValue = (options as Record<string, unknown>).maxEmptyLines;
+  const rawValue = (options as unknown as Record<string, unknown>).maxEmptyLines;
   if (typeof rawValue === 'number' && rawValue >= 0) {
     return rawValue;
   }
@@ -296,7 +296,7 @@ function sortPlainAttributes(attributes: ElementAttribute[], options: ParserOpti
   if (idAttr) ordered.push(idAttr);
   if (classAttr) ordered.push(classAttr);
 
-  const preferredDataOrder: string[] = (options as Record<string, unknown>).dataAttributeOrder as string[];
+  const preferredDataOrder: string[] = (options as unknown as Record<string, unknown>).dataAttributeOrder as string[];
   const dataOrder = Array.isArray(preferredDataOrder) ? preferredDataOrder : [];
 
   if (dataOrder.length === 0) {
@@ -330,7 +330,7 @@ function getIndentWidth(options: ParserOptions): number {
 }
 
 function getIndentUnit(options: ParserOptions): string {
-  const useTabs = (options as Record<string, unknown>).useTabs === true;
+  const useTabs = (options as unknown as Record<string, unknown>).useTabs === true;
   const tabWidth = getIndentWidth(options);
 
   return useTabs ? '\t' : ' '.repeat(tabWidth);
