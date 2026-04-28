@@ -227,6 +227,10 @@ Useful scripts:
 - `npm run corpus:check -- <path> [more-paths...]` - run an idempotence / crash-safety sweep over real template corpora
 - `npm run pack:check` - inspect npm package contents with `npm pack --dry-run`
 
+## VS Code Companion
+
+If you work with Handlebars in VS Code, try [HBS Master](https://marketplace.visualstudio.com/items?itemName=poliklot.hbs-master) as a companion extension. It pairs well with this formatter and makes day-to-day `.hbs` editing more comfortable.
+
 ## Notes
 
 - This README is intentionally self-contained so it works well on npm too.
