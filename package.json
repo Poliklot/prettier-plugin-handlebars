@@ -1,0 +1,62 @@
+{
+  "name": "@poliklot/prettier-plugin-handlebars",
+  "version": "0.1.6",
+  "description": "Prettier plugin for classic Handlebars (.hbs)",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "./dist/plugin.js",
+  "types": "./dist/plugin.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/plugin.d.ts",
+      "require": "./dist/plugin.js",
+      "default": "./dist/plugin.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Poliklot/prettier-plugin-handlebars.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Poliklot/prettier-plugin-handlebars/issues"
+  },
+  "homepage": "https://github.com/Poliklot/prettier-plugin-handlebars#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "prettier",
+    "prettier-plugin",
+    "handlebars",
+    "hbs",
+    "html",
+    "formatter"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run build && npm test",
+    "corpus:check": "node scripts/run-corpus-check.mjs",
+    "pack:check": "node scripts/pack-check.mjs",
+    "prepublishOnly": "npm run check"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "prettier": "^3.2.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.4"
+  },
+  "peerDependencies": {
+    "prettier": ">=3.0.0"
+  },
+  "dependencies": {
+    "handlebars": "^4.7.8"
+  }
+}
