@@ -4,22 +4,9 @@
 
 Prettier plugin for classic Handlebars templates with mixed HTML markup.
 
-It is built for `.hbs` / `.handlebars` codebases that use classic Handlebars patterns such as:
-
-- HTML + Handlebars in the same tree
-- partials and long partial params
-- helpers with positional params, hash params, and nested subexpressions
-- block partials and inline partial definitions
-- `{{else if ...}}` branch chains
-- block helpers inside attributes
-- Handlebars inside quoted and unquoted attribute values
-- multiline `class=""` values with helpers
-- whitespace control markers
-- raw Handlebars blocks
-- raw `script` / `style` sections
-- whitespace-sensitive `pre` / `textarea` content
-- malformed or half-written templates that should be preserved safely
-- root-level plain-text templates such as `Hello, {{name}}!`
+It formats `.hbs` / `.handlebars` files used in HTML-heavy Handlebars projects,
+with a focus on stable, idempotent output and preserving classic Handlebars
+semantics.
 
 ## Install
 
@@ -270,13 +257,14 @@ Operators like `'==='`, `'!=='`, `'>'`, and `'<'` are kept as positional params 
 
 ## Current Limits
 
-This is still a `0.x` formatter.
+This is a `0.x` formatter focused on classic Handlebars.
 
-The highest-priority unsupported or not-yet-finished areas include:
+Known limits:
 
-- decorators outside inline partial definitions
-- embedded JavaScript / CSS formatting inside `script` / `style` tags; these sections are preserved safely today
-- more dialect-specific syntax outside classic Handlebars, especially Glimmer / Ember-only constructs
+- standalone decorators and non-inline decorator blocks are preserved conservatively, but not fully formatted yet
+- `script` / `style` contents are preserved safely; embedded JavaScript / CSS formatting is intentionally not enabled yet
+- Glimmer / Ember-only syntax is treated as stress input, not as a compatibility target
+- exact byte-level fixtures, such as BOM / no-final-newline tests, may still need project-level `prettier-ignore`
 
 ## Development
 
