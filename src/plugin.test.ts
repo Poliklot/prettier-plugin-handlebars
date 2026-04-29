@@ -1166,6 +1166,89 @@ describe('prettier ignore', () => {
   });
 });
 
+describe('comments and recovery', () => {
+  it('preserves handlebars-looking expressions inside inline handlebars comments', async () => {
+    const output = await format('{{!-- <span>{{ price }}</span> --}}');
+
+    expect(output).toBe('{{!-- <span>{{ price }}</span> --}}\n');
+  });
+
+  it('preserves handlebars-looking expressions inside multiline handlebars comments', async () => {
+    const input = stripIndent(`
+      {{!--
+        <span>{{ price }}</span>
+      --}}
+    `);
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{!--
+        <span>{{ price }}</span>
+      --}}
+    `));
+  });
+
+  it('preserves malformed block partials without formatting the incomplete body', async () => {
+    const input = stripIndent(`
+      {{#> layout}}
+        <main>{{body}}</main>
+    `);
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{#> layout}}
+        <main>{{body}}</main>
+    `));
+  });
+
+  it('does not synthesize closing tags when malformed block partials consume an element body', async () => {
+    const input = stripIndent(`
+      <section>
+        {{#> layout}}
+          <main>{{body}}</main>
+      </section>
+    `);
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <section>
+        {{#> layout}}
+          <main>{{body}}</main>
+      </section>
+    `));
+  });
+
+  it('does not synthesize closing tags when unclosed raw blocks consume an element body', async () => {
+    const input = stripIndent(`
+      <div>
+        {{{{raw}}}}<span>{{ value }}</span>
+      </div>
+    `);
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <div>
+        {{{{raw}}}}<span>{{ value }}</span>
+      </div>
+    `));
+  });
+
+  it('does not synthesize block endings when unclosed raw blocks consume a block body', async () => {
+    const input = stripIndent(`
+      {{#if visible}}
+        {{{{raw}}}}<span>{{ value }}</span>
+      {{/if}}
+    `);
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{#if visible}}
+        {{{{raw}}}}<span>{{ value }}</span>
+      {{/if}}
+    `));
+  });
+});
+
 describe('raw text elements', () => {
   it('formats plain JavaScript inside script tags through Prettier embed', async () => {
     const input = `<script>const state={count:1};function read(){return state.count}</script>`;

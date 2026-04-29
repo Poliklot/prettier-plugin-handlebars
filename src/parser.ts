@@ -175,12 +175,19 @@ function parseChildren(
 
       if (token.kind === 'blockStart') {
         if (!hasMatchingBlockEnd(text, token, pos)) {
-          nodes.push(createUnmatchedNode(text, pos, token.end));
-          pos = token.end;
+          const preserveEnd = token.specialForm === 'blockPartial' ? text.length : token.end;
+          nodes.push(createUnmatchedNode(text, pos, preserveEnd));
+          pos = preserveEnd;
           continue;
         }
 
-        const { node, next } = parseBlock(text, token, rangeOffset);
+        const { node, next, closed } = parseBlock(text, token, rangeOffset);
+        if (!closed) {
+          nodes.push(createUnmatchedNode(text, pos, next));
+          pos = next;
+          continue;
+        }
+
         nodes.push(node);
         pos = next;
         continue;
@@ -313,7 +320,17 @@ function parseChildren(
         continue;
       }
 
-      const { nodes: children, position: newPos } = parseChildren(text, tagResult.end, tagResult.tag, null, rangeOffset);
+      const {
+        nodes: children,
+        position: newPos,
+        endReason: childEndReason,
+      } = parseChildren(text, tagResult.end, tagResult.tag, null, rangeOffset);
+      if (childEndReason !== 'tagClose') {
+        nodes.push(createUnmatchedNode(text, pos, newPos));
+        pos = newPos;
+        continue;
+      }
+
       nodes.push(
         withRange(
           {
@@ -397,7 +414,11 @@ function hasMatchingBlockEnd(text: string, token: MustacheToken, start: number):
   return false;
 }
 
-function parseBlock(text: string, token: MustacheToken, rangeOffset = 0): { node: BlockStatement; next: number } {
+function parseBlock(
+  text: string,
+  token: MustacheToken,
+  rangeOffset = 0,
+): { node: BlockStatement; next: number; closed: boolean } {
   const openInfo = parseExpression(getBlockExpression(token));
   const blockPrefix = getBlockPrefix(token);
   const { nodes: program, position: afterProgram, endReason, endToken } = parseChildren(
@@ -500,7 +521,7 @@ function parseBlock(text: string, token: MustacheToken, rangeOffset = 0): { node
     rangeOffset + finalPos,
   );
 
-  return { node, next: finalPos };
+  return { node, next: finalPos, closed: Boolean(closeToken) };
 }
 
 function getBlockExpression(token: MustacheToken): string {

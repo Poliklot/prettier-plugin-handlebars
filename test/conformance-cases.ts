@@ -246,6 +246,21 @@ export const readyCases: ConformanceCase[] = [
     `),
   },
   {
+    id: 'malformed-block-partial-recovery',
+    name: 'preserves malformed block partials without formatting the incomplete body',
+    area: 'comments-and-recovery',
+    priority: 'high',
+    rationale: 'Half-written block partials should stay stable while the user is editing.',
+    source: stripIndent(`
+      {{#> layout}}
+        <main>{{body}}</main>
+    `),
+    expected: withTrailingNewline(`
+      {{#> layout}}
+        <main>{{body}}</main>
+    `),
+  },
+  {
     id: 'inline-partials',
     name: 'supports inline partial definitions',
     area: 'core-syntax',
@@ -539,6 +554,15 @@ export const backlogCases: ConformanceCase[] = [
     priority: 'medium',
     rationale: 'Comments should not accidentally become a parseable template surface.',
     source: `<!-- {{ this should stay comment text }} -->`,
+  },
+  {
+    id: 'handlebars-comment-with-mustaches',
+    name: 'preserves Handlebars comments containing handlebars-looking text',
+    area: 'comments-and-recovery',
+    priority: 'high',
+    rationale: 'Comment content should not accidentally become a parsed template surface.',
+    source: `{{!-- <span>{{ price }}</span> --}}`,
+    expected: withTrailingNewline(`{{!-- <span>{{ price }}</span> --}}`),
   },
   {
     id: 'crlf-input',

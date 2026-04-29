@@ -144,6 +144,15 @@ describe('simple parser coverage', () => {
     });
   });
 
+  it('preserves malformed block partials as unmatched source', () => {
+    const node = firstNode<UnmatchedNode>('{{#> layout}}\n  <main>{{body}}</main>');
+
+    expect(node).toEqual({
+      type: 'UnmatchedNode',
+      raw: '{{#> layout}}\n  <main>{{body}}</main>',
+    });
+  });
+
   it('parses dynamic attribute names as raw attributes', () => {
     const input = firstElement('<span data-{{ control.badgeData }}></span>');
 
@@ -192,6 +201,16 @@ describe('medium parser coverage', () => {
     });
 
     expect((element.children[1] as ElementNode).tag).toBe('span');
+  });
+
+  it('keeps handlebars-looking expressions inside handlebars comments as comment text', () => {
+    const comment = firstNode<CommentStatement>('{{!-- <span>{{ price }}</span> --}}');
+
+    expect(comment).toMatchObject({
+      type: 'CommentStatement',
+      value: '<span>{{ price }}</span>',
+      block: true,
+    });
   });
 
   it('parses style contents as a single verbatim child', () => {

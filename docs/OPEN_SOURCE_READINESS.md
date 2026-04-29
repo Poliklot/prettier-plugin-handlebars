@@ -23,7 +23,7 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 | Priority | Status | Case | Why it matters |
 | --- | --- | --- | --- |
 | release-blocker | Covered | Mustache spacing inside attributes | Covered by regression tests and real project sweeps. |
-| release-blocker | Partial | Inline-vs-multiline element decisions | A formatter that flips layout unexpectedly will feel unsafe in large repos. |
+| release-blocker | Covered | Inline-vs-multiline element decisions | Policy is explicit: whitespace-sensitive inline templates are protected; HTML markup is pretty-printed. |
 | release-blocker | Covered | Block-scoped attributes with conditional branches | Real templates often gate multiple attrs behind `if` / `ifEquals`. |
 | release-blocker | Covered | Handlebars whitespace control `~` | Very common in production HBS and whitespace-sensitive templates. |
 | release-blocker | Covered | Raw blocks `{{{{raw}}}} ... {{{{/raw}}}}` | Must not be misparsed as regular blocks. |
@@ -77,13 +77,13 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 | --- | --- | --- | --- |
 | high | Covered | Multiline Handlebars comments | `{{!-- ... --}}` |
 | high | Covered | `prettier-ignore` directives | `prettier-ignore`, `-start`, `-end` |
-| high | Partial | Comments containing embedded mustaches | `{{!-- <span>{{ price }}</span> --}}` |
+| high | Covered | Comments containing embedded mustaches | `{{!-- <span>{{ price }}</span> --}}` |
 | high | Covered | Comments with trim markers and weird spacing | `{{~!-- note --~}}` |
 | high | Covered | Unmatched tag / block recovery | incomplete block or element |
 | medium | Covered | Invalid closing tags on void elements are preserved safely | `<br></br>` |
 | high | Covered | Broken interleaving of HTML and Handlebars | opening tag inside unmatched block branch |
 | medium | Covered | HTML comments containing `{{` and `}}` | `<!-- {{ not a token }} -->` |
-| medium | Missing | Recovery from invalid block-partial syntax | `{{#> layout}}` without close |
+| medium | Covered | Recovery from invalid block-partial syntax | `{{#> layout}}` without close |
 
 ## Stability and Open-Source Quality
 
@@ -94,8 +94,38 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 | high | Covered | Render-output stability on semantic fixtures | Handlebars runtime tests compare output before and after formatting. |
 | high | Covered | Cross-platform newline normalization | Prevent noisy diffs across OSes. |
 | high | Covered | Unicode and non-Latin text fixtures | Open-source usage will include Cyrillic, CJK, emoji, entities. |
-| high | Missing | Parser fuzzing / crash-resistance corpus | Safety net for malformed templates. |
+| high | Covered | Parser fuzzing / crash-resistance corpus | `npm run fuzz:parser` checks malformed templates for crashes and idempotence. |
 | medium | Covered | Fixture corpus from real public templates | Best way to avoid overfitting to handcrafted tests. |
+
+## Inline-vs-Multiline Policy
+
+This formatter is allowed to pretty-print HTML markup. That means ordinary HTML
+element formatting may change text-node whitespace between tags, just like other
+HTML formatters do.
+
+The stricter byte-for-byte semantic gate is reserved for places where
+Handlebars whitespace is part of the template contract:
+
+- root-level plain-text templates such as `Hello, {{name}}!`
+- inline whitespace-control forms such as `{{~ value ~}}`
+- inline block whitespace-control such as `{{#if ok~}} yes {{~else~}} no {{~/if}}`
+- raw blocks, `pre`, and `textarea`
+- malformed or unsupported constructs that must be preserved instead of
+  reformatted
+
+When a construct is malformed enough that the parser cannot safely understand
+its structure, the recovery policy is preservation over invention.
+
+## Fuzzing
+
+Run deterministic malformed-template fuzzing before parser or recovery releases:
+
+```bash
+npm run fuzz:parser
+```
+
+The fuzz gate formats fixed and generated ugly templates, then formats the
+result again. Any crash or non-idempotent result fails the command.
 
 ## Public OSS Corpus
 
@@ -146,7 +176,7 @@ engine-specific layout directives or exact rendered-output tests.
 
 1. Keep the GitHub-issue-inspired conformance cases green as formatter behavior evolves.
 2. Keep expanding anonymized real-world `.hbs` fixtures when a project exposes a new edge case.
-3. Decide the remaining policy for non-inline decorators and self-closing custom elements.
-4. Add fuzzing and more malformed block-partial recovery coverage before calling the parser stable.
+3. Decide the remaining policy for non-inline decorators.
+4. Keep expanding fuzz seeds whenever parser recovery learns a new edge case.
 
 The living backlog of concrete edge-case inputs sits in `test/conformance-cases.ts`.
