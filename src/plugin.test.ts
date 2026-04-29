@@ -416,6 +416,31 @@ describe('inline text adjacency', () => {
     expect(output).toBe('Hello {{ name }}! You have {{ count }} new messages.\n');
   });
 
+  it('keeps root-level inline whitespace-control blocks on one semantic line', async () => {
+    const output = await format('A {{#if ok~}} B {{~else~}} C {{~/if}} D\n');
+
+    expect(output).toBe('A {{#if ok ~}}B{{~else~}}C{{~/if}} D\n');
+  });
+
+  it('preserves trim markers on multiline final else branches', async () => {
+    const input = stripIndent(`
+      {{#if ok}}
+        A
+      {{~else~}}
+        B
+      {{/if}}
+    `);
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{#if ok}}
+        A
+      {{~else~}}
+        B
+      {{/if}}
+    `));
+  });
+
   it('does not insert spaces before punctuation after mustaches', async () => {
     const input = `<li>{{subtract stars.items.length 2}}+</li>`;
     const output = await format(input);

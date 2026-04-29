@@ -412,6 +412,8 @@ function parseBlock(text: string, token: MustacheToken, rangeOffset = 0): { node
   const inverseChain: ElseBranch[] = [];
   let finalPos = afterProgram;
   let closeToken = endReason === 'blockEnd' ? endToken : undefined;
+  let inverseTrimOpen = false;
+  let inverseTrimClose = false;
 
   if (endReason === 'else' && endToken) {
     let currentElseToken: MustacheToken | undefined = endToken;
@@ -454,6 +456,8 @@ function parseBlock(text: string, token: MustacheToken, rangeOffset = 0): { node
     }
 
     if (currentElseToken) {
+      inverseTrimOpen = currentElseToken.trimOpen;
+      inverseTrimClose = currentElseToken.trimClose;
       const {
         nodes: inverseNodes,
         position: afterInverse,
@@ -475,6 +479,8 @@ function parseBlock(text: string, token: MustacheToken, rangeOffset = 0): { node
       program: programBody,
       ...(inverseChain.length > 0 ? { inverseChain } : {}),
       inverse: inverseBody,
+      ...(inverseTrimOpen ? { inverseTrimOpen } : {}),
+      ...(inverseTrimClose ? { inverseTrimClose } : {}),
       rawOpen: token.content,
       blockPrefix,
       trimOpen: token.trimOpen,

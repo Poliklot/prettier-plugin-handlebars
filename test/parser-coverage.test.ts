@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { locEnd, locStart, parse } from '../src/parser';
+import { printer } from '../src/printer';
 import type {
   BlockStatement,
   CommentStatement,
@@ -58,6 +59,16 @@ describe('simple parser coverage', () => {
     expect(locStart(mustache)).toBe(15);
     expect(locEnd(mustache)).toBe(23);
     expect(Object.keys(attr.value)).not.toContain('range');
+  });
+
+  it('exposes explicit Prettier visitor keys for traversable AST fields', () => {
+    const program = parseProgram('<div title="{{name}}">{{value}}</div>');
+    const element = program.body[0] as ElementNode;
+    const attr = element.attributes[0];
+
+    expect(printer.getVisitorKeys?.(program, new Set())).toEqual(['body']);
+    expect(printer.getVisitorKeys?.(element, new Set(['attributes']))).toEqual(['children']);
+    expect(printer.getVisitorKeys?.(attr as never, new Set())).toEqual(['value']);
   });
 
   it('parses short handlebars comments at the top level', () => {
@@ -151,6 +162,13 @@ describe('medium parser coverage', () => {
     expect(block.program.body).toHaveLength(1);
     expect(block.inverse.body).toHaveLength(1);
     expect((block.inverse.body[0] as ElementNode).tag).toBe('em');
+  });
+
+  it('tracks trim markers on final else branches', () => {
+    const block = firstNode<BlockStatement>('{{#if ok}}A{{~else~}}B{{/if}}');
+
+    expect(block.inverseTrimOpen).toBe(true);
+    expect(block.inverseTrimClose).toBe(true);
   });
 
   it('parses html comments inside elements as verbatim text nodes', () => {

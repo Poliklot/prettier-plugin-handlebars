@@ -45,6 +45,13 @@ describe('semantic render stability', () => {
     });
   });
 
+  it('preserves inline whitespace-control branch output', async () => {
+    const source = 'A {{#if ok~}} B {{~else~}} C {{~/if}} D\n';
+
+    await expectRenderStable(source, { ok: true });
+    await expectRenderStable(source, { ok: false });
+  });
+
   it('preserves partial invocation output', async () => {
     await expectRenderStable('{{> greeting name=name}}\n', { name: 'Igor' }, {
       greeting: 'Hello, {{name}}!\n',
