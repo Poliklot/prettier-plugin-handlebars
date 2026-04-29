@@ -28,6 +28,7 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 | release-blocker | Covered | Raw blocks `{{{{raw}}}} ... {{{{/raw}}}}` | Must not be misparsed as regular blocks. |
 | release-blocker | Covered | Block partials `{{#> layout}} ... {{/layout}}` | Common in larger Handlebars ecosystems. |
 | release-blocker | Covered | Inline partial definitions `{{#*inline "x"}}` | Needed for reusable partial-heavy codebases. |
+| release-blocker | Covered | Root-level plain-text templates with mustaches | Must not turn `Hello, {{name}}!` into different rendered text. |
 | release-blocker | Covered | `script` / `style` content containing closing tags in strings | Raw-text parsing skips quoted closing-tag lookalikes. |
 | release-blocker | Covered | Text nodes containing `<` that are not HTML tags | Formatter must not reinterpret plain text as markup. |
 | release-blocker | Covered | CRLF and BOM handling | Open-source users will hit Windows files immediately. |
@@ -104,6 +105,7 @@ npm run corpus:oss
 By default, the script clones shallow copies into `OSS_CORPUS_ROOT` or
 `<system-temp>/hbs-oss-corpus` and checks:
 
+- `handlebars-lang/handlebars.js`
 - `TryGhost/Ghost` classic frontend, server, and fixture templates
 - `TryGhost/Casper`
 - `TryGhost/Source`
@@ -125,6 +127,10 @@ dialect is useful for crash-safety but is not the plugin's compatibility target.
 
 The `pillarjs/hbs` fixture `test/4.x/views/bad_layout.hbs` is intentionally
 invalid (`{{title}` / `{{{body`) and is ignored only for the idempotence gate.
+The `handlebars-lang/handlebars.js` artifact `spec/artifacts/bom.handlebars`
+is an exact raw-source fixture for BOM / no-final-newline behavior. Do not use
+that file as a project build-formatting target unless it is intentionally
+excluded from formatting.
 
 The corpus sweep is a parser/printer safety gate. For release confidence, also
 copy representative projects to a temp directory, run `npm run format:hbs-tree`

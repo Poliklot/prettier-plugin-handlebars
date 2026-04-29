@@ -13,6 +13,7 @@ const skipClone = process.env.OSS_CORPUS_SKIP_CLONE === '1' || process.argv.incl
 const strictStress = process.env.OSS_CORPUS_STRICT_STRESS === '1';
 
 const repos = [
+  { slug: 'handlebars-lang/handlebars.js', dir: 'handlebars.js' },
   { slug: 'TryGhost/Ghost', dir: 'Ghost' },
   { slug: 'TryGhost/Casper', dir: 'Casper' },
   { slug: 'TryGhost/Source', dir: 'Source' },
@@ -30,6 +31,7 @@ const repos = [
 ];
 
 const classicRootSpecs = [
+  ['handlebars.js'],
   ['Casper'],
   ['Source'],
   ['London'],

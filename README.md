@@ -19,6 +19,7 @@ It is built for `.hbs` / `.handlebars` codebases that use classic Handlebars pat
 - raw `script` / `style` sections
 - whitespace-sensitive `pre` / `textarea` content
 - malformed or half-written templates that should be preserved safely
+- root-level plain-text templates such as `Hello, {{name}}!`
 
 ## Install
 
@@ -210,6 +211,7 @@ Maximum number of consecutive blank lines preserved between nodes.
 - hash params written as `key=value`, `key= value`, or `key = value`
 - long helper and partial calls with nested subexpressions
 - `prettier-ignore`, `prettier-ignore-start`, `prettier-ignore-end`
+- root-level plain-text templates with inline mustaches
 - raw `script` / `style` text preservation
 - literal `pre` / `textarea` text preservation
 - unmatched / incomplete structures preserved as raw nodes instead of crashing

@@ -398,6 +398,24 @@ describe('boolean attributes', () => {
 });
 
 describe('inline text adjacency', () => {
+  it('keeps root-level plain text with mustaches on one semantic line', async () => {
+    const output = await format('Hello, {{name}}!');
+
+    expect(output).toBe('Hello, {{ name }}!\n');
+  });
+
+  it('keeps root-level label templates inline', async () => {
+    const output = await format('Author: {{author}}\n');
+
+    expect(output).toBe('Author: {{ author }}\n');
+  });
+
+  it('keeps long root-level text templates on one semantic line', async () => {
+    const output = await format('Hello {{name}}! You have {{count}} new messages.', { printWidth: 20 });
+
+    expect(output).toBe('Hello {{ name }}! You have {{ count }} new messages.\n');
+  });
+
   it('does not insert spaces before punctuation after mustaches', async () => {
     const input = `<li>{{subtract stars.items.length 2}}+</li>`;
     const output = await format(input);

@@ -306,7 +306,36 @@ function printProgram(path: AstPath<Program>, options: ParserOptions, print: (pa
     parts[parts.length - 1] = lastPart.replace(/\n+$/, '');
   }
 
+  if (canPrintRootInlineTextTemplate(nodes)) {
+    return concat([stringifyInlineChildren(nodes, options), hardline]);
+  }
+
   return concat([join(hardline, parts), hardline]);
+}
+
+function canPrintRootInlineTextTemplate(nodes: Node[]): boolean {
+  return nodes.some((node) => node.type === 'TextNode') && nodes.every(isRootInlineTextTemplateChild);
+}
+
+function isRootInlineTextTemplateChild(node: Node, index: number, nodes: Node[]): boolean {
+  if (node.type === 'MustacheStatement') {
+    return true;
+  }
+
+  if (node.type !== 'TextNode') {
+    return false;
+  }
+
+  const text = node as TextNode;
+  if (text.verbatim || text.blankLines || /[\r\n]/.test(text.value) || hasLineBreak(text.leadingWhitespace)) {
+    return false;
+  }
+
+  return !hasLineBreak(text.trailingWhitespace) || index === nodes.length - 1;
+}
+
+function hasLineBreak(value: string | undefined): boolean {
+  return typeof value === 'string' && /[\r\n]/.test(value);
 }
 
 function sortAttributes(attributes: ElementAttribute[], options: ParserOptions): ElementAttribute[] {
