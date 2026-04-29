@@ -281,6 +281,13 @@ function parseChildren(
       }
 
       if (tagResult.kind === 'selfClosing') {
+        const invalidVoidCloseEnd = consumeInvalidVoidElementClose(text, tagResult.end, tagResult.tag);
+        if (invalidVoidCloseEnd !== null) {
+          nodes.push(createUnmatchedNode(text, pos, invalidVoidCloseEnd));
+          pos = invalidVoidCloseEnd;
+          continue;
+        }
+
         nodes.push(
           withRange(
             {
@@ -840,6 +847,17 @@ function parseTag(text: string, position: number):
   const kind = voidElements.has(tag.toLowerCase()) ? 'selfClosing' : 'open';
   const normalizedAttributes = normalizeTagAttributes(attributes);
   return { kind, tag, attributes: normalizedAttributes, end: pos };
+}
+
+function consumeInvalidVoidElementClose(text: string, position: number, tag: string): number | null {
+  if (!voidElements.has(tag.toLowerCase())) {
+    return null;
+  }
+
+  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = text.slice(position).match(new RegExp(`^[\\t\\n\\f\\r ]*</\\s*${escapedTag}\\s*>`, 'i'));
+
+  return match ? position + match[0].length : null;
 }
 
 function isTagStart(text: string, position: number): boolean {

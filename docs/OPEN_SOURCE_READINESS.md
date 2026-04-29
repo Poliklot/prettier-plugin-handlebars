@@ -68,8 +68,8 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 | high | Covered | SVG / namespaced tags and attrs | `<svg:use xlink:href="#id" />` |
 | high | Covered | `textarea` / `pre` whitespace-sensitive content | `<textarea>  keep me  </textarea>` |
 | medium | Covered | Doctype and root-level mixed content | `<!doctype html>` plus comments and blocks |
-| medium | Missing | Attribute values containing `>` or `<` in strings | `data-json='{"html":"<b>"}'` |
-| medium | Missing | Self-closing custom elements policy | `<x-thing />` |
+| medium | Covered | Attribute values containing `>` or `<` in strings | `data-json='{"html":"<b>"}'` |
+| medium | Covered | Self-closing custom elements policy | `<x-thing />` |
 
 ## Comments, Ignore, and Recovery
 
@@ -80,6 +80,7 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 | high | Partial | Comments containing embedded mustaches | `{{!-- <span>{{ price }}</span> --}}` |
 | high | Covered | Comments with trim markers and weird spacing | `{{~!-- note --~}}` |
 | high | Covered | Unmatched tag / block recovery | incomplete block or element |
+| medium | Covered | Invalid closing tags on void elements are preserved safely | `<br></br>` |
 | high | Covered | Broken interleaving of HTML and Handlebars | opening tag inside unmatched block branch |
 | medium | Covered | HTML comments containing `{{` and `}}` | `<!-- {{ not a token }} -->` |
 | medium | Missing | Recovery from invalid block-partial syntax | `{{#> layout}}` without close |

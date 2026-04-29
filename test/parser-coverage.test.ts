@@ -10,6 +10,7 @@ import type {
   PartialStatement,
   Program,
   TextNode,
+  UnmatchedNode,
 } from '../src/types';
 
 function parseProgram(source: string): Program {
@@ -132,6 +133,15 @@ describe('simple parser coverage', () => {
         },
       },
     ]);
+  });
+
+  it('preserves invalid closing tags on void elements as unmatched source', () => {
+    const node = firstNode<UnmatchedNode>('<br></br>');
+
+    expect(node).toEqual({
+      type: 'UnmatchedNode',
+      raw: '<br></br>',
+    });
   });
 
   it('parses dynamic attribute names as raw attributes', () => {

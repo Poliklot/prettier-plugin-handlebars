@@ -1670,6 +1670,18 @@ describe('void elements', () => {
     expect(output).toBe(stripIndentWithNL(`<source media="(min-width:1440px)" srcset="@img/pic.avif" type="image/avif" />`));
   });
 
+  it('preserves invalid closing tags on void elements instead of splitting them apart', async () => {
+    const output = await format('<p>A<br></br>B</p>');
+
+    expect(output).toBe(stripIndentWithNL(`
+      <p>
+        A
+        <br></br>
+        B
+      </p>
+    `));
+  });
+
   it('avoids leading whitespace before the self-closing slash on its own line', async () => {
     const input = stripIndent(`<source media="(min-width: 650px)" srcset="@img/certificates/background/background.webp" type="image/webp"/>`);
 
@@ -1706,6 +1718,20 @@ describe('data attribute ordering', () => {
     const input = '<div data-attribute-b="b" data-attribute-a="a" data-attribute-c="c"></div>';
     const output = await format(input, { dataAttributeOrder: ['data-attribute-c', 'data-attribute-a'] });
     expect(output).toBe(`<div data-attribute-c="c" data-attribute-a="a" data-attribute-b="b"></div>\n`);
+  });
+});
+
+describe('attribute edge cases', () => {
+  it('keeps angle brackets inside quoted attribute values as text', async () => {
+    const output = await format(`<div data-json='{"html":"<b>"}'></div>`);
+
+    expect(output).toBe(`<div data-json='{"html":"<b>"}'></div>\n`);
+  });
+
+  it('preserves self-closing custom elements as custom elements', async () => {
+    const output = await format('<x-thing />');
+
+    expect(output).toBe('<x-thing />\n');
   });
 });
 
