@@ -6,6 +6,7 @@ import {
   TextNode,
   MustacheStatement,
   BlockStatement,
+  ElseBranch,
   PartialStatement,
   CommentStatement,
   HashPair,
@@ -95,7 +96,7 @@ function parseChildren(text: string, position: number, endTag: string | null, en
     if (text.startsWith('{{', pos)) {
       const token = parseMustacheToken(text, pos);
 
-      if (shouldPreserveMustacheVerbatim(token)) {
+      if (shouldPreserveMustacheVerbatim(token) && !(endBlock && token.kind === 'else')) {
         const preserveEnd =
           token.kind === 'blockStart' ? consumeUnsupportedBlock(text, pos, token) : token.end;
         nodes.push(createUnmatchedNode(text, pos, preserveEnd));
@@ -322,18 +323,55 @@ function parseBlock(text: string, token: MustacheToken): { node: BlockStatement;
   const programBody = buildProgram(program);
 
   let inverseBody: Program = { type: 'Program', body: [] };
+  const inverseChain: ElseBranch[] = [];
   let finalPos = afterProgram;
   let closeToken = endReason === 'blockEnd' ? endToken : undefined;
 
-  if (endReason === 'else') {
-    const {
-      nodes: inverseNodes,
-      position: afterInverse,
-      endToken: inverseEndToken,
-    } = parseChildren(text, afterProgram, null, openInfo.path);
-    inverseBody = buildProgram(inverseNodes);
-    finalPos = afterInverse;
-    closeToken = inverseEndToken;
+  if (endReason === 'else' && endToken) {
+    let currentElseToken: MustacheToken | undefined = endToken;
+    let currentPosition = afterProgram;
+
+    while (currentElseToken?.specialForm === 'elseIf') {
+      const branchInfo = parseExpression(currentElseToken.content.replace(/^else\s+/, ''));
+      const { type: _branchType, ...branchExpression } = branchInfo;
+      const {
+        nodes: branchNodes,
+        position: afterBranch,
+        endReason: branchEndReason,
+        endToken: branchEndToken,
+      } = parseChildren(text, currentPosition, null, openInfo.path);
+
+      inverseChain.push({
+        type: 'ElseBranch',
+        program: buildProgram(branchNodes),
+        trimOpen: currentElseToken.trimOpen,
+        trimClose: currentElseToken.trimClose,
+        ...branchExpression,
+      });
+
+      finalPos = afterBranch;
+      closeToken = branchEndReason === 'blockEnd' ? branchEndToken : undefined;
+
+      if (branchEndReason === 'else' && branchEndToken) {
+        currentElseToken = branchEndToken;
+        currentPosition = afterBranch;
+        continue;
+      }
+
+      currentElseToken = undefined;
+    }
+
+    if (currentElseToken) {
+      const {
+        nodes: inverseNodes,
+        position: afterInverse,
+        endReason: inverseEndReason,
+        endToken: inverseEndToken,
+      } = parseChildren(text, currentPosition, null, openInfo.path);
+      inverseBody = buildProgram(inverseNodes);
+      finalPos = afterInverse;
+      closeToken = inverseEndReason === 'blockEnd' ? inverseEndToken : undefined;
+    }
   }
 
   // Drop the mustache-specific `type` field so we can build a proper BlockStatement
@@ -342,6 +380,7 @@ function parseBlock(text: string, token: MustacheToken): { node: BlockStatement;
   const node: BlockStatement = {
     type: 'BlockStatement',
     program: programBody,
+    ...(inverseChain.length > 0 ? { inverseChain } : {}),
     inverse: inverseBody,
     rawOpen: token.content,
     blockPrefix,
@@ -742,12 +781,17 @@ function parseAttribute(text: string, position: number): { attribute: ElementAtt
     pos = end >= 0 ? end + 1 : text.length;
   } else {
     const start = pos;
-    while (
-      pos < text.length &&
-      !whitespace.test(text[pos]) &&
-      text[pos] !== '>' &&
-      text[pos] !== '/'
-    ) {
+    while (pos < text.length && text[pos] !== '>' && text[pos] !== '/') {
+      if (text.startsWith('{{', pos)) {
+        const token = parseMustacheToken(text, pos);
+        pos = token.end;
+        continue;
+      }
+
+      if (whitespace.test(text[pos])) {
+        break;
+      }
+
       pos += 1;
     }
     rawValue = text.slice(start, pos);
@@ -1444,18 +1488,35 @@ function splitParams(tokens: string[]): { params: string[]; hash: HashPair[] } {
   const params: string[] = [];
   const hash: HashPair[] = [];
 
-  tokens.forEach((token) => {
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
     const eqIndex = token.indexOf('=');
-    if (eqIndex > 0) {
-      const key = token.slice(0, eqIndex);
-      const value = token.slice(eqIndex + 1);
+    const key = eqIndex > 0 ? token.slice(0, eqIndex) : '';
+
+    if (eqIndex > 0 && isHashKey(key)) {
+      let value = token.slice(eqIndex + 1);
+      if (value === '' && index + 1 < tokens.length) {
+        value = tokens[index + 1];
+        index += 1;
+      }
       hash.push({ key, value });
-    } else {
-      params.push(token);
+      continue;
     }
-  });
+
+    if (isHashKey(token) && tokens[index + 1] === '=' && index + 2 < tokens.length) {
+      hash.push({ key: token, value: tokens[index + 2] });
+      index += 2;
+      continue;
+    }
+
+    params.push(token);
+  }
 
   return { params, hash };
+}
+
+function isHashKey(value: string): boolean {
+  return /^[A-Za-z_@][A-Za-z0-9_@.:-]*$/.test(value);
 }
 
 function normalizeExpression(content: string): string {

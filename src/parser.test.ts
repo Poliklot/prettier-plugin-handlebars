@@ -290,6 +290,102 @@ describe('Mustache blocks in children', () => {
     });
   });
 
+  it('captures else-if branches separately from the final else branch', () => {
+    const input = `
+      <div>
+        {{#if primary}}
+          one
+        {{else if secondary}}
+          two
+        {{else if (and tertiary quaternary)}}
+          three
+        {{else}}
+          four
+        {{/if}}
+      </div>
+    `;
+
+    const output = parse(input);
+    const el = firstElement(output);
+    const ifBlock = el.children.find(
+      child =>
+        child.type === 'BlockStatement' &&
+        child.path === 'if'
+    ) as any;
+
+    expect(ifBlock).toMatchObject({
+      type: 'BlockStatement',
+      path: 'if',
+      inverseChain: [
+        {
+          type: 'ElseBranch',
+          path: 'if',
+          params: ['secondary'],
+          program: expect.objectContaining({ type: 'Program' })
+        },
+        {
+          type: 'ElseBranch',
+          path: 'if',
+          params: ['(and tertiary quaternary)'],
+          program: expect.objectContaining({ type: 'Program' })
+        }
+      ],
+      inverse: expect.objectContaining({ type: 'Program' })
+    });
+
+    expect(ifBlock.inverse.body.some(node => node.type === 'TextNode' && node.value.includes('four'))).toBe(true);
+  });
+
+  it('keeps quoted comparison operators as positional params', () => {
+    const input = `
+      <div>
+        {{#ifCompare ../activeIndex '===' @index}}
+          active
+        {{/ifCompare}}
+      </div>
+    `;
+
+    const output = parse(input);
+    const el = firstElement(output);
+    const ifCompareBlock = el.children.find(
+      child =>
+        child.type === 'BlockStatement' &&
+        child.path === 'ifCompare'
+    ) as any;
+
+    expect(ifCompareBlock).toMatchObject({
+      path: 'ifCompare',
+      params: ['../activeIndex', "'==='", '@index'],
+      hash: []
+    });
+  });
+
+  it('keeps spaced hash assignments as hash pairs', () => {
+    const input = `
+      <div>
+        {{> 'ui/input-primary/input-primary'
+          id= 'compare-family-name'
+          type = 'text'
+          placeholder='Фамилия'
+        }}
+      </div>
+    `;
+
+    const output = parse(input);
+    const el = firstElement(output);
+    const partial = el.children.find(child => child.type === 'PartialStatement') as any;
+
+    expect(partial).toMatchObject({
+      path: "'ui/input-primary/input-primary'",
+      params: [],
+      hash: [
+        { key: 'id', value: "'compare-family-name'" },
+        { key: 'type', value: "'text'" },
+        { key: 'placeholder', value: "'Фамилия'" }
+      ]
+    });
+  });
+
   it('each attributes in tag (AttributeBlock)', () => {
     const input = `
       <div

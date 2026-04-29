@@ -6,6 +6,7 @@ import {
   CommentStatement,
   ElementAttribute,
   ElementNode,
+  ElseBranch,
   HashPair,
   MustacheStatement,
   Node,
@@ -19,6 +20,7 @@ const { hardline, join, group, indent, line, softline, ifBreak, lineSuffix, line
 const { willBreak } = utils;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
 const whitespaceSensitiveRawTextTags = new Set(['pre', 'textarea']);
+type PrintableExpression = MustacheStatement | BlockStatement | ElseBranch | PartialStatement;
 
 function docHasHardline(doc: Doc): boolean {
   if (typeof doc === 'string') {
@@ -68,11 +70,11 @@ function normalizeInlineText(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-function getTrimOpen(node: MustacheStatement | BlockStatement | PartialStatement): string {
+function getTrimOpen(node: PrintableExpression): string {
   return node.trimOpen ? '~' : '';
 }
 
-function getTrimClose(node: MustacheStatement | BlockStatement | PartialStatement): string {
+function getTrimClose(node: PrintableExpression): string {
   return node.trimClose ? '~' : '';
 }
 
@@ -92,8 +94,12 @@ function getMustacheClosePadding(node: MustacheStatement, content: string): stri
   return node.trimClose && /\s/.test(content) ? ' ' : '';
 }
 
-function getTrimClosePadding(node: BlockStatement | PartialStatement, content: string): string {
+function getTrimClosePadding(node: BlockStatement | ElseBranch | PartialStatement, content: string): string {
   return node.trimClose && /\s/.test(content) ? ' ' : '';
+}
+
+function shouldKeepParamInline(param: string): boolean {
+  return param.includes('\n') || /^\(parseJSON\s+['"`]/.test(param.trim());
 }
 
 function getBlockPrefix(node: BlockStatement): '#' | '#>' | '#*' {
@@ -151,7 +157,7 @@ export const printer: Printer<Node> = {
         }
         return node.value.replace(/\s+/g, ' ').trim();
       case 'MustacheStatement':
-        return printMustache(node);
+        return printMustache(node, options);
       case 'BlockStatement':
         return printBlock(path as AstPath<BlockStatement>, options, print);
       case 'PartialStatement':
@@ -247,6 +253,25 @@ function printProgram(path: AstPath<Program>, options: ParserOptions, print: (pa
     nodes.push(childNode);
     parts.push(doc);
   }, 'body');
+
+  if (parts.length === 0) {
+    return '';
+  }
+
+  while (parts.length > 0 && parts[0] === '' && nodes[0]?.type === 'TextNode' && (nodes[0] as TextNode).blankLines) {
+    parts.shift();
+    nodes.shift();
+  }
+
+  while (
+    parts.length > 0 &&
+    parts[parts.length - 1] === '' &&
+    nodes[nodes.length - 1]?.type === 'TextNode' &&
+    (nodes[nodes.length - 1] as TextNode).blankLines
+  ) {
+    parts.pop();
+    nodes.pop();
+  }
 
   if (parts.length === 0) {
     return '';
@@ -660,12 +685,20 @@ function printAttributeBlock(block: BlockStatement): Doc {
   const body =
     bodyLines.length > 0 ? concat([indent(concat([hardline, join(hardline, bodyLines)])), hardline]) : hardline;
 
-  let inverse: Doc = '';
+  const inverseParts: Doc[] = [];
+  (block.inverseChain ?? []).forEach((branch) => {
+    const branchLines = formatAttributeBlockBody(stringifyNode(branch.program as Program));
+    const branchBody =
+      branchLines.length > 0 ? concat([indent(concat([hardline, join(hardline, branchLines)])), hardline]) : hardline;
+    inverseParts.push(concat([printElseBranchOpen(branch), branchBody]));
+  });
+
   if (block.inverse.body.length > 0) {
     const inverseLines = formatAttributeBlockBody(stringifyNode(block.inverse as Program));
-    inverse = concat(['{{else}}', indent(concat([hardline, join(hardline, inverseLines)])), hardline]);
+    inverseParts.push(concat(['{{else}}', indent(concat([hardline, join(hardline, inverseLines)])), hardline]));
   }
 
+  const inverse = inverseParts.length > 0 ? concat(inverseParts) : '';
   const close = printBlockClose(block);
 
   return concat([open, body, inverse, close]);
@@ -701,12 +734,27 @@ function getInlineOpenTagLength(node: ElementNode, attributes: ElementAttribute[
   return `${open}${close}`.length;
 }
 
-function stringifyInlineChild(node: Node): string {
+function stringifyInlineChild(node: Node, options?: ParserOptions): string {
   switch (node.type) {
     case 'TextNode':
       return normalizeInlineText((node as TextNode).value);
     case 'MustacheStatement':
       return stringifyMustache(node as MustacheStatement);
+    case 'ElementNode': {
+      const element = node as ElementNode;
+      const sortOptions = options ?? ({} as ParserOptions);
+      const sortedAttributes = sortAttributes(element.attributes, sortOptions);
+      if (
+        isInlineContentTag(element.tag) &&
+        element.children.length > 0 &&
+        element.children.every(isInlineContentChild) &&
+        !sortedAttributes.some(shouldBreakAttribute)
+      ) {
+        return stringifySimpleInlineElement(element, sortedAttributes, sortOptions);
+      }
+
+      return stringifyNode(node);
+    }
     default:
       return stringifyNode(node);
   }
@@ -760,17 +808,17 @@ function joinExpandedChildren(nodes: Node[], docs: Doc[]): Doc {
   return concat(parts);
 }
 
-function stringifyInlineChildren(nodes: Node[]): string {
+function stringifyInlineChildren(nodes: Node[], options?: ParserOptions): string {
   return nodes.reduce((result, child, index) => {
     const separator = index > 0 && shouldInsertInlineSeparator(nodes[index - 1], child) ? ' ' : '';
-    return `${result}${separator}${stringifyInlineChild(child)}`;
+    return `${result}${separator}${stringifyInlineChild(child, options)}`;
   }, '');
 }
 
 function stringifySimpleInlineElement(node: ElementNode, attributes: ElementAttribute[], options?: ParserOptions): string {
   const attrs = attributes.map((attr) => stringifyAttribute(attr, options)).join(' ');
   const open = attrs ? `<${node.tag} ${attrs}>` : `<${node.tag}>`;
-  return `${open}${stringifyInlineChildren(node.children as Node[])}</${node.tag}>`;
+  return `${open}${stringifyInlineChildren(node.children as Node[], options)}</${node.tag}>`;
 }
 
 function shouldPreserveRawTextElement(node: ElementNode): boolean {
@@ -788,11 +836,11 @@ function getSingleInlineElementLength(
   child: Node,
   options?: ParserOptions,
 ): number {
-  return getInlineOpenTagLength(node, attributes, options) + stringifyInlineChild(child).length + `</${node.tag}>`.length;
+  return getInlineOpenTagLength(node, attributes, options) + stringifyInlineChild(child, options).length + `</${node.tag}>`.length;
 }
 
 function getSimpleInlineElementLength(node: ElementNode, attributes: ElementAttribute[], options?: ParserOptions): number {
-  const childrenLength = stringifyInlineChildren(node.children as Node[]).length;
+  const childrenLength = stringifyInlineChildren(node.children as Node[], options).length;
 
   return getInlineOpenTagLength(node, attributes, options) + childrenLength + `</${node.tag}>`.length;
 }
@@ -871,7 +919,8 @@ function canInlineBlock(
 
   const programChildren = node.program.body;
   const inverseChildren = node.inverse.body;
-  const allChildren = [...programChildren, ...inverseChildren];
+  const inverseChainChildren = (node.inverseChain ?? []).flatMap((branch) => branch.program.body);
+  const allChildren = [...programChildren, ...inverseChainChildren, ...inverseChildren];
 
   if (allChildren.length === 0) {
     return false;
@@ -918,11 +967,17 @@ function stringifyNode(node: Node): string {
       const expression = buildExpression(block);
       const open = `{{${getTrimOpen(block)}${printedPrefix}${expression}${getTrimClosePadding(block, expression)}${getTrimClose(block)}}}`;
       const program = stringifyNode(block.program as Program);
+      const inverseChain = (block.inverseChain ?? [])
+        .map((branch) => {
+          const branchExpression = buildExpression(branch);
+          return `{{${getTrimOpen(branch)}else ${branchExpression}${getTrimClosePadding(branch, branchExpression)}${getTrimClose(branch)}}}${stringifyNode(branch.program as Program)}`;
+        })
+        .join('');
       const inverse = block.inverse.body.length > 0
         ? `{{else}}${stringifyNode(block.inverse as Program)}`
         : '';
       const close = `{{${block.closeTrimOpen ? '~' : ''}/${block.path}${block.closeTrimClose ? '~' : ''}}}`;
-      return `${open}${program}${inverse}${close}`;
+      return `${open}${program}${inverseChain}${inverse}${close}`;
     }
     case 'ElementNode': {
       const element = node as ElementNode;
@@ -1077,12 +1132,17 @@ function stringifyMustache(node: MustacheStatement): string {
   return `${open}${getTrimOpen(node)}${getMustacheOpenPadding(node, content)}${content}${getMustacheClosePadding(node, content)}${getTrimClose(node)}${close}`;
 }
 
-function printMustache(node: MustacheStatement): Doc {
+function printMustache(node: MustacheStatement, options: ParserOptions): Doc {
   const content = buildExpression(node);
   const open = node.triple ? '{{{' : '{{';
   const close = node.triple ? '}}}' : '}}';
 
-  const shouldMultiline = node.hash.length > 0 && node.hash.length + node.params.length > 1;
+  const expressionPartCount = node.hash.length + node.params.length;
+  const canWrapPlainParams = !node.params.some(shouldKeepParamInline);
+  const shouldMultiline =
+    !node.triple &&
+    expressionPartCount > 1 &&
+    ((node.hash.length > 0 && expressionPartCount > 1) || (canWrapPlainParams && content.length > getPrintWidth(options)));
 
   if (shouldMultiline) {
     const paramsDocs: Doc[] = [];
@@ -1141,7 +1201,29 @@ function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print
   const body =
     bodyDocs.length > 0 ? concat([indent(concat([hardline, join(hardline, bodyDocs)])), hardline]) : hardline;
 
-  let inverse: Doc = '';
+  const inverseParts: Doc[] = [];
+  (node.inverseChain ?? []).forEach((branch, index) => {
+    const branchDocs: Doc[] = [];
+    path.call((branchProgramPath) => {
+      branchProgramPath.each((childPath) => {
+        const childNode = childPath.getValue() as Node;
+        if (childNode.type === 'TextNode' && childNode.blankLines && getMaxEmptyLines(options) === 0) {
+          return;
+        }
+
+        const doc = print(childPath as AstPath<Node>);
+        if (doc === null) {
+          return;
+        }
+        branchDocs.push(doc);
+      }, 'body');
+    }, 'inverseChain', index, 'program');
+
+    const branchBody =
+      branchDocs.length > 0 ? concat([indent(concat([hardline, join(hardline, branchDocs)])), hardline]) : hardline;
+    inverseParts.push(concat([printElseBranchOpen(branch), branchBody]));
+  });
+
   if (node.inverse.body.length > 0) {
     const inverseDocs: Doc[] = [];
     path.call((inversePath) => {
@@ -1158,9 +1240,10 @@ function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print
         inverseDocs.push(doc);
       }, 'body');
     }, 'inverse');
-    inverse = concat(['{{else}}', indent(concat([hardline, join(hardline, inverseDocs)])), hardline]);
+    inverseParts.push(concat(['{{else}}', indent(concat([hardline, join(hardline, inverseDocs)])), hardline]));
   }
 
+  const inverse = inverseParts.length > 0 ? concat(inverseParts) : '';
   const close = printBlockClose(node);
 
   return concat([open, body, inverse, close]);
@@ -1189,6 +1272,34 @@ function printBlockOpen(node: BlockStatement): Doc {
     '{{',
     getTrimOpen(node),
     printedPrefix,
+    expression,
+    getTrimClosePadding(node, expression),
+    getTrimClose(node),
+    '}}',
+  ]);
+}
+
+function printElseBranchOpen(node: ElseBranch): Doc {
+  const expression = buildExpression(node);
+  const multilineExpression = splitMultilineExpression(expression);
+
+  if (multilineExpression) {
+    return concat([
+      '{{',
+      getTrimOpen(node),
+      'else ',
+      multilineExpression[0],
+      indent(concat([hardline, join(hardline, multilineExpression.slice(1))])),
+      hardline,
+      getTrimClose(node),
+      '}}',
+    ]);
+  }
+
+  return concat([
+    '{{',
+    getTrimOpen(node),
+    'else ',
     expression,
     getTrimClosePadding(node, expression),
     getTrimClose(node),
@@ -1347,7 +1458,7 @@ function normalizeInlineCommentLines(lines: string[], options: ParserOptions): s
   });
 }
 
-function buildExpression(node: MustacheStatement | BlockStatement | PartialStatement): string {
+function buildExpression(node: PrintableExpression): string {
   const pieces: string[] = [];
   if (node.path) {
     pieces.push(node.path);

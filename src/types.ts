@@ -77,9 +77,15 @@ export interface MustacheStatement extends MustacheBase {
   triple: boolean;
 }
 
+export interface ElseBranch extends MustacheBase {
+  type: 'ElseBranch';
+  program: Program;
+}
+
 export interface BlockStatement extends MustacheBase {
   type: 'BlockStatement';
   program: Program;
+  inverseChain?: ElseBranch[];
   inverse: Program;
   rawOpen: string;
   blockPrefix?: '#' | '#>' | '#*';

@@ -69,6 +69,13 @@ describe('attribute quotes and trim markers', () => {
     expect(output).toBe(stripIndentWithNL(`<button title='Buy now' data-label='Primary'></button>`));
   });
 
+  it('reads unquoted mustache attribute values with internal spaces', async () => {
+    const input = `<img src={{ imgSrc }} alt="{{ orString imgAlt }}" />`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`<img src="{{ imgSrc }}" alt="{{orString imgAlt}}" />`));
+  });
+
   it('preserves whitespace-control markers inside attribute values', async () => {
     const input = `<div title="{{~ label ~}}"></div>`;
     const output = await format(input);
@@ -556,6 +563,25 @@ describe('mustache spacing', () => {
     `));
   });
 
+  it('keeps helpers tight while padding simple values with trim markers', async () => {
+    const input = stripIndent(`
+      {{~value}}
+      {{value~}}
+      {{~value~}}
+      {{~ foo-bar arg=this.foo~}}
+      {{ setVar "name" value ~}}
+    `);
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{~ value }}
+      {{ value ~}}
+      {{~ value ~}}
+      {{~foo-bar arg=this.foo ~}}
+      {{setVar "name" value ~}}
+    `));
+  });
+
   it('removes trailing space before block close', async () => {
     const input = '{{#if item }}{{/if}}';
     const output = await format(input);
@@ -580,6 +606,94 @@ describe('helpers with hash pairs', () => {
         headTitle="Lorem ipsum | Page title"
         headDescription="Placeholder description"
       }}
+    `));
+  });
+
+  it('wraps long helpers with plain params and nested subexpressions', async () => {
+    const input =
+      '{{setVar "navigationPayload" (parseJSON (concat header.payload footer.payload sidebar.payload breadcrumbs.payload))}}';
+    const output = await format(input, { printWidth: 72 });
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{setVar
+        "navigationPayload"
+        (parseJSON (concat header.payload footer.payload sidebar.payload breadcrumbs.payload))
+      }}
+    `));
+  });
+
+  it('prints partial params and hashes predictably', async () => {
+    const input =
+      '{{> catalog/card product=(lookup products @index) selected=(isEqual ../activeId id) className="catalog__card catalog__card--featured"}}';
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{> catalog/card
+        product=(lookup products @index)
+        selected=(isEqual ../activeId id)
+        className="catalog__card catalog__card--featured"
+      }}
+    `));
+  });
+
+  it('keeps partial hash assignments with spaces around equals as hashes', async () => {
+    const input = stripIndent(`
+      {{> 'ui/input-primary/input-primary'
+        id= 'compare-family-name'
+        type = 'text'
+        placeholder='Фамилия'
+      }}
+    `);
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{> 'ui/input-primary/input-primary'
+        id='compare-family-name'
+        type='text'
+        placeholder='Фамилия'
+      }}
+    `));
+  });
+});
+
+describe('else-if chains', () => {
+  it('preserves conditional branches as else-if blocks', async () => {
+    const input = stripIndent(`
+      {{#if primary}}
+      one
+      {{else if secondary}}
+      two
+      {{else if (and tertiary quaternary)}}
+      three
+      {{else}}
+      four
+      {{/if}}
+    `);
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{#if primary}}
+        one
+      {{else if secondary}}
+        two
+      {{else if (and tertiary quaternary)}}
+        three
+      {{else}}
+        four
+      {{/if}}
+    `));
+  });
+
+  it('formats else-if chains inside inline attribute values', async () => {
+    const input =
+      '<button data-state="{{#if primary}}primary{{else if secondary}}secondary{{else}}fallback{{/if}}" aria-label="{{#if title}}{{title}}{{else if fallbackTitle}}{{fallbackTitle}}{{else}}Open{{/if}}"></button>';
+    const output = await format(input, { printWidth: 90 });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <button
+        data-state="{{#if primary}}primary{{else if secondary}}secondary{{else}}fallback{{/if}}"
+        aria-label="{{#if title}}{{ title }}{{else if fallbackTitle}}{{ fallbackTitle }}{{else}}Open{{/if}}"
+      ></button>
     `));
   });
 });
@@ -652,6 +766,78 @@ describe('handlebars block attribute values', () => {
     const output = await format(input);
 
     expect(output).toBe(stripIndentWithNL(input));
+  });
+
+  it('keeps class blocks readable when else-if appears inside class values', async () => {
+    const input =
+      '<div class="card{{#if isPrimary}} card--primary{{else if isSecondary}} card--secondary{{else}} card--default{{/if}} {{#if isHidden}}is-hidden{{/if}}"></div>';
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <div
+        class="
+          card
+          {{#if isPrimary}}
+            card--primary
+          {{else if isSecondary}}
+            card--secondary
+          {{else}}
+            card--default
+          {{/if}}
+          {{#if isHidden}}
+            is-hidden
+          {{/if}}
+        "
+      ></div>
+    `));
+  });
+
+  it('does not reorder quoted comparison operators inside class blocks', async () => {
+    const input = stripIndent(`
+      {{#each policyDocuments}}
+        <a
+          class="
+            tab-buttons__button
+            {{#ifCompare ../activeIndex '===' @index}}
+              tab-buttons__button--active
+            {{/ifCompare}}
+          "
+          href="{{ href }}"
+        >
+          {{ titleShort }}
+        </a>
+      {{/each}}
+    `);
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{#each policyDocuments}}
+        <a
+          class="
+            tab-buttons__button
+            {{#ifCompare ../activeIndex '===' @index}}
+              tab-buttons__button--active
+            {{/ifCompare}}
+          "
+          href="{{ href }}"
+        >
+          {{ titleShort }}
+        </a>
+      {{/each}}
+    `));
+  });
+
+  it('keeps style attributes with helper values inline and stable', async () => {
+    const input =
+      '<div style="--accent: {{color}}; width: {{#if compact}}24px{{else if wide}}72px{{else}}48px{{/if}};" data-size="{{#if compact}}small{{else if wide}}wide{{else}}medium{{/if}}"></div>';
+    const output = await format(input, { printWidth: 100 });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <div
+        style="--accent: {{ color }}; width: {{#if compact}}24px{{else if wide}}72px{{else}}48px{{/if}};"
+        data-size="{{#if compact}}small{{else if wide}}wide{{else}}medium{{/if}}"
+      ></div>
+    `));
   });
 });
 
@@ -1643,6 +1829,19 @@ describe('blank lines', () => {
     expect(output).toBe(stripIndentWithNL(template));
   });
 
+  it('drops root-level leading blank lines consistently', async () => {
+    const input = `\n\n<section><div>Title</div></section>`;
+    const output = await format(input);
+    const secondPass = await format(output);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <section>
+        <div>Title</div>
+      </section>
+    `));
+    expect(secondPass).toBe(output);
+  });
+
   it('removes extra blank lines', async () => {
     const input = stripIndent(`
       <div>
@@ -1697,5 +1896,27 @@ describe('blank lines', () => {
     const output = await format(input, { maxEmptyLines: 2 });
 
     expect(output).toBe(stripIndentWithNL(input));
+  });
+});
+
+describe('nested inline content stability', () => {
+  it('keeps inline descendants stable after normalizing text whitespace', async () => {
+    const input = stripIndent(`
+      <p>
+        Long text before the link that was wrapped in the source template
+        and then continues right before <a href="tel:84996819582"><strong>8 (499)
+          681-95-82</strong></a>.
+      </p>
+    `);
+    const output = await format(input);
+    const secondPass = await format(output);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <p>
+        Long text before the link that was wrapped in the source template and then continues right before
+        <a href="tel:84996819582"><strong>8 (499) 681-95-82</strong></a>.
+      </p>
+    `));
+    expect(secondPass).toBe(output);
   });
 });
