@@ -1142,6 +1142,71 @@ describe('prettier ignore', () => {
 });
 
 describe('raw text elements', () => {
+  it('formats plain JavaScript inside script tags through Prettier embed', async () => {
+    const input = `<script>const state={count:1};function read(){return state.count}</script>`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <script>
+        const state = { count: 1 };
+        function read() {
+          return state.count;
+        }
+      </script>
+    `));
+  });
+
+  it('formats plain CSS inside style tags through Prettier embed', async () => {
+    const input = `<style>.banner{color:red;background:#fff}</style>`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <style>
+        .banner {
+          color: red;
+          background: #fff;
+        }
+      </style>
+    `));
+  });
+
+  it('preserves CSS with multiline banner comments to keep formatting idempotent', async () => {
+    const input = stripIndent(`
+      <style>
+        /* ---
+            banner
+        --- */
+        .banner{color:red}
+      </style>
+    `);
+
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <style>
+        /* ---
+            banner
+        --- */
+        .banner{color:red}
+      </style>
+    `));
+    expect(await format(output)).toBe(output);
+  });
+
+  it('preserves script tags with Handlebars instead of embedding JavaScript formatting', async () => {
+    const input = `<script>const value="{{value}}";</script>`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`<script>const value="{{value}}";</script>`));
+  });
+
+  it('respects embeddedLanguageFormatting off for script tags', async () => {
+    const input = `<script>const state={count:1};</script>`;
+    const output = await format(input, { embeddedLanguageFormatting: 'off' });
+
+    expect(output).toBe(stripIndentWithNL(`<script>const state={count:1};</script>`));
+  });
+
   it('trims trailing empty lines inside script and style blocks', async () => {
     const input = stripIndent(`
       <style>
@@ -1182,7 +1247,11 @@ describe('raw text elements', () => {
       <a>
         code
         <script>
-          window["wb-charts"] = { plugins: ["site!deps/jquery.flot.navigate.js"] };
+          window["wb-charts"] = {
+            plugins: [
+              "site!deps/jquery.flot.navigate.js",
+            ],
+          };
         </script>
         code
       </a>
@@ -1758,8 +1827,8 @@ describe('raw text elements', () => {
     expect(output).toBe(
       stripIndentWithNL(`
         <script>
-          document.addEventListener('DOMContentLoaded', () => {
-            console.log('ready');
+          document.addEventListener("DOMContentLoaded", () => {
+            console.log("ready");
           });
         </script>
       `),

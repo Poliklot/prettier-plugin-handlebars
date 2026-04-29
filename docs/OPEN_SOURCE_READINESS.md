@@ -31,6 +31,7 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 | release-blocker | Covered | Inline partial definitions `{{#*inline "x"}}` | Needed for reusable partial-heavy codebases. |
 | release-blocker | Covered | Root-level plain-text templates with mustaches | Must not turn `Hello, {{name}}!` into different rendered text. |
 | release-blocker | Covered | `script` / `style` content containing closing tags in strings | Raw-text parsing skips quoted closing-tag lookalikes. |
+| high | Covered | Embedded JavaScript / CSS formatting for plain `script` / `style` tags | Uses Prettier embed for safe raw-text children and falls back to preservation otherwise. |
 | release-blocker | Covered | Text nodes containing `<` that are not HTML tags | Formatter must not reinterpret plain text as markup. |
 | release-blocker | Covered | CRLF and BOM handling | Open-source users will hit Windows files immediately. |
 
@@ -144,7 +145,7 @@ engine-specific layout directives or exact rendered-output tests.
 
 1. Keep the GitHub-issue-inspired conformance cases green as formatter behavior evolves.
 2. Keep expanding anonymized real-world `.hbs` fixtures when a project exposes a new edge case.
-3. Decide the remaining policy for non-inline decorators, embedded JS/CSS formatting, and self-closing custom elements.
+3. Decide the remaining policy for non-inline decorators and self-closing custom elements.
 4. Add fuzzing and more malformed block-partial recovery coverage before calling the parser stable.
 
 The living backlog of concrete edge-case inputs sits in `test/conformance-cases.ts`.

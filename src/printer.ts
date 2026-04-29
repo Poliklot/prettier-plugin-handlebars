@@ -1,4 +1,4 @@
-import type { AstPath, Doc, ParserOptions, Printer } from 'prettier';
+import type { AstPath, Doc, Options, ParserOptions, Printer } from 'prettier';
 import { builders, utils } from 'prettier/doc';
 import {
   AttributeValue,
@@ -17,7 +17,7 @@ import {
 } from './types';
 
 const { hardline, join, group, indent, line, softline, ifBreak, lineSuffix, lineSuffixBoundary } = builders;
-const { willBreak } = utils;
+const { stripTrailingHardline, willBreak } = utils;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
 const whitespaceSensitiveRawTextTags = new Set(['pre', 'textarea']);
 const trimmableRawTextTags = new Set(['script', 'style']);
@@ -133,6 +133,36 @@ function getMaxEmptyLines(options: ParserOptions): number {
 }
 
 export const printer: Printer<Node> = {
+  embed(path, options) {
+    const node = path.getValue() as Node;
+    if (node.type !== 'TextNode') {
+      return null;
+    }
+
+    const parentNode = path.getParentNode() as Node | null;
+    if (parentNode?.type !== 'ElementNode') {
+      return null;
+    }
+
+    const parser = getEmbeddedRawTextParser(parentNode as ElementNode, node as TextNode, options);
+    if (!parser) {
+      return null;
+    }
+
+    return async (textToDoc) => {
+      const content = normalizeEmbeddedRawText((node as TextNode).value);
+      if (content.trim() === '') {
+        return '';
+      }
+
+      const doc = await textToDoc(content, {
+        ...options,
+        parser,
+      });
+
+      return stripTrailingHardline(doc);
+    };
+  },
   print(path, options, print) {
     const node = path.getValue() as Node;
 
@@ -257,6 +287,107 @@ function shouldTrimRawTextBoundaryWhitespace(parentNode: Node | null, node: Text
 
 function trimRawTextBoundaryWhitespace(value: string): string {
   return value.replace(/[ \t]+$/, '');
+}
+
+type EmbeddedRawTextParser = 'babel' | 'css';
+
+function getEmbeddedRawTextParser(
+  element: ElementNode,
+  child: TextNode,
+  options: Options | ParserOptions,
+): EmbeddedRawTextParser | null {
+  if (!isEmbeddedLanguageFormattingEnabled(options) || !isSingleRawTextChild(element, child)) {
+    return null;
+  }
+
+  const tag = element.tag.toLowerCase();
+  const content = normalizeEmbeddedRawText(child.value);
+  if (!canFormatEmbeddedRawText(content, tag)) {
+    return null;
+  }
+
+  if (tag === 'style') {
+    const type = getStaticAttributeValue(element, 'type');
+    return !type || type === 'text/css' ? 'css' : null;
+  }
+
+  if (tag === 'script') {
+    if (hasPlainAttribute(element, 'src')) {
+      return null;
+    }
+
+    const type = getStaticAttributeValue(element, 'type');
+    return isJavaScriptScriptType(type) ? 'babel' : null;
+  }
+
+  return null;
+}
+
+function isEmbeddedLanguageFormattingEnabled(options: Options | ParserOptions): boolean {
+  return (options as { embeddedLanguageFormatting?: string }).embeddedLanguageFormatting !== 'off';
+}
+
+function isSingleRawTextChild(element: ElementNode, child: TextNode): boolean {
+  return (
+    trimmableRawTextTags.has(element.tag.toLowerCase()) &&
+    element.children.length === 1 &&
+    element.children[0] === child &&
+    child.verbatim === true
+  );
+}
+
+function canFormatEmbeddedRawText(content: string, tag: string): boolean {
+  return (
+    content.trim() !== '' &&
+    !content.includes('{{') &&
+    !content.includes('}}') &&
+    !new RegExp(`</\\s*${tag}`, 'i').test(content) &&
+    !(tag === 'style' && hasMultilineBlockComment(content))
+  );
+}
+
+function hasMultilineBlockComment(content: string): boolean {
+  return /\/\*[\s\S]*?\n[\s\S]*?\*\//.test(content);
+}
+
+function getStaticAttributeValue(element: ElementNode, name: string): string | null {
+  const attr = element.attributes.find(
+    (candidate) => candidate.type === 'Attribute' && candidate.name.toLowerCase() === name,
+  );
+
+  if (!attr || attr.type !== 'Attribute') {
+    return null;
+  }
+
+  if (!attr.value) {
+    return '';
+  }
+
+  if (!attr.value.parts.every((part) => part.type === 'TextNode')) {
+    return null;
+  }
+
+  return attr.value.parts.map((part) => (part as TextNode).value).join('').trim().toLowerCase();
+}
+
+function hasPlainAttribute(element: ElementNode, name: string): boolean {
+  return element.attributes.some((attr) => attr.type === 'Attribute' && attr.name.toLowerCase() === name);
+}
+
+function isJavaScriptScriptType(type: string | null): boolean {
+  return (
+    !type ||
+    type === 'module' ||
+    type === 'text/javascript' ||
+    type === 'application/javascript' ||
+    type === 'text/ecmascript' ||
+    type === 'application/ecmascript'
+  );
+}
+
+function normalizeEmbeddedRawText(content: string): string {
+  const lines = trimSurroundingBlankLines(content.replace(/\r\n?/g, '\n').replace(/[ \t]+$/gm, '').split('\n'));
+  return stripCommonIndent(lines).join('\n');
 }
 
 function printProgram(path: AstPath<Program>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {
@@ -590,6 +721,15 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
   }
 
   const singleChild = node.children.length === 1 ? node.children[0] : null;
+
+  if (
+    singleChild?.type === 'TextNode' &&
+    getEmbeddedRawTextParser(node, singleChild as TextNode, options) &&
+    childrenDocs.length === 1
+  ) {
+    return concat([openDoc, indent(concat([hardline, childrenDocs[0]])), hardline, closeDoc]);
+  }
+
   const singleChildIsMustache = singleChild?.type === 'MustacheStatement';
   const mustacheInsideBlock =
     singleChildIsMustache && ancestors.some((ancestor) => ancestor?.type === 'BlockStatement');

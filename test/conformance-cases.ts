@@ -159,8 +159,8 @@ export const readyCases: ConformanceCase[] = [
         }
       </style>
       <script>
-        document.addEventListener('DOMContentLoaded', () => {
-          console.log('ready');
+        document.addEventListener("DOMContentLoaded", () => {
+          console.log("ready");
         });
       </script>
     `),
@@ -175,8 +175,8 @@ export const readyCases: ConformanceCase[] = [
         }
       </style>
       <script>
-        document.addEventListener('DOMContentLoaded', () => {
-          console.log('ready');
+        document.addEventListener("DOMContentLoaded", () => {
+          console.log("ready");
         });
       </script>
     `),

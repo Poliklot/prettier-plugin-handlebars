@@ -199,7 +199,8 @@ Maximum number of consecutive blank lines preserved between nodes.
 - long helper and partial calls with nested subexpressions
 - `prettier-ignore`, `prettier-ignore-start`, `prettier-ignore-end`
 - root-level plain-text templates with inline mustaches
-- raw `script` / `style` text preservation
+- embedded JavaScript / CSS formatting for plain `script` / `style` tags
+- raw `script` / `style` preservation when content contains Handlebars or non-JS/CSS types
 - literal `pre` / `textarea` text preservation
 - unmatched / incomplete structures preserved as raw nodes instead of crashing
 - recovery for some broken formatter output, such as split dynamic attribute names
@@ -262,7 +263,7 @@ This is a `0.x` formatter focused on classic Handlebars.
 Known limits:
 
 - standalone decorators and non-inline decorator blocks are preserved conservatively, but not fully formatted yet
-- `script` / `style` contents are preserved safely; embedded JavaScript / CSS formatting is intentionally not enabled yet
+- embedded JavaScript / CSS formatting is conservative and only runs for plain safe `script` / `style` content
 - Glimmer / Ember-only syntax is treated as stress input, not as a compatibility target
 - exact byte-level fixtures, such as BOM / no-final-newline tests, may still need project-level `prettier-ignore`
 

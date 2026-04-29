@@ -467,12 +467,12 @@ describe('deep nesting and raw text coverage from mined patterns', () => {
     await expectStableFormat(
       `
         <script>
-          document.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('[data-scroll-to]').forEach(($button) => {
-              $button.addEventListener('click', (event) => {
-                const href = $button.getAttribute('href');
+          document.addEventListener("DOMContentLoaded", () => {
+            document.querySelectorAll("[data-scroll-to]").forEach(($button) => {
+              $button.addEventListener("click", (event) => {
+                const href = $button.getAttribute("href");
 
-                if (!href || !href.startsWith('#')) {
+                if (!href || !href.startsWith("#")) {
                   return;
                 }
 
@@ -482,7 +482,7 @@ describe('deep nesting and raw text coverage from mined patterns', () => {
                 }
 
                 event.preventDefault();
-                $target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                $target.scrollIntoView({ behavior: "smooth", block: "start" });
               });
             });
           });
@@ -490,12 +490,12 @@ describe('deep nesting and raw text coverage from mined patterns', () => {
       `,
       `
         <script>
-          document.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('[data-scroll-to]').forEach(($button) => {
-              $button.addEventListener('click', (event) => {
-                const href = $button.getAttribute('href');
+          document.addEventListener("DOMContentLoaded", () => {
+            document.querySelectorAll("[data-scroll-to]").forEach(($button) => {
+              $button.addEventListener("click", (event) => {
+                const href = $button.getAttribute("href");
 
-                if (!href || !href.startsWith('#')) {
+                if (!href || !href.startsWith("#")) {
                   return;
                 }
 
@@ -505,7 +505,7 @@ describe('deep nesting and raw text coverage from mined patterns', () => {
                 }
 
                 event.preventDefault();
-                $target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                $target.scrollIntoView({ behavior: "smooth", block: "start" });
               });
             });
           });
@@ -518,7 +518,9 @@ describe('deep nesting and raw text coverage from mined patterns', () => {
     await expectStableFormat(
       `
         <script>
-          const reA = new RegExp('(?:^|; )' + nameA.replace(/([.$?*|{}()[\\]\\/+^])/g, '\\\\$1') + '=([^;]*)');
+          const reA = new RegExp(
+            "(?:^|; )" + nameA.replace(/([.$?*|{}()[\\]\\/+^])/g, "\\\\$1") + "=([^;]*)",
+          );
           const textA = \`a-\${valueA}\`;
           const htmlA = \`<div class="box">\${textA}</div>\`;
           return reA.test(textA) && htmlA.length > 0;
@@ -526,7 +528,9 @@ describe('deep nesting and raw text coverage from mined patterns', () => {
       `,
       `
         <script>
-          const reA = new RegExp('(?:^|; )' + nameA.replace(/([.$?*|{}()[\\]\\/+^])/g, '\\\\$1') + '=([^;]*)');
+          const reA = new RegExp(
+            "(?:^|; )" + nameA.replace(/([.$?*|{}()[\\]\\/+^])/g, "\\\\$1") + "=([^;]*)",
+          );
           const textA = \`a-\${valueA}\`;
           const htmlA = \`<div class="box">\${textA}</div>\`;
           return reA.test(textA) && htmlA.length > 0;
