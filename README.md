@@ -262,7 +262,6 @@ This is a `0.x` formatter focused on classic Handlebars.
 
 Known limits:
 
-- standalone decorators and non-inline decorator blocks are preserved conservatively, but not fully formatted yet
 - embedded JavaScript / CSS formatting is conservative and only runs for plain safe `script` / `style` content
 - Glimmer / Ember-only syntax is treated as stress input, not as a compatibility target
 - exact byte-level fixtures, such as BOM / no-final-newline tests, may still need project-level `prettier-ignore`

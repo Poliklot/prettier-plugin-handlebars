@@ -53,7 +53,7 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 | medium | Covered | Path literals / bracket lookups | `user.[first-name]` |
 | medium | Covered | Triple-stash in mixed HTML contexts | `{{{ html }}}` |
 | medium | Covered | `else if` style constructs | `{{else if cond}}` |
-| medium | Partial | Decorators and decorator blocks | Inline partial definitions are covered; other decorators are preserved conservatively. |
+| medium | Covered | Decorators and decorator blocks | `{{*log value}}`, `{{#*decorate}}...{{/decorate}}`, and inline partial definitions. |
 
 ## HTML Interop
 
@@ -77,6 +77,7 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 | --- | --- | --- | --- |
 | high | Covered | Multiline Handlebars comments | `{{!-- ... --}}` |
 | high | Covered | `prettier-ignore` directives | `prettier-ignore`, `-start`, `-end` |
+| high | Covered | Prettier comment hooks | Comments are first-class AST nodes with visitor, own-print, and ignore hooks. |
 | high | Covered | Comments containing embedded mustaches | `{{!-- <span>{{ price }}</span> --}}` |
 | high | Covered | Comments with trim markers and weird spacing | `{{~!-- note --~}}` |
 | high | Covered | Unmatched tag / block recovery | incomplete block or element |
@@ -176,7 +177,7 @@ engine-specific layout directives or exact rendered-output tests.
 
 1. Keep the GitHub-issue-inspired conformance cases green as formatter behavior evolves.
 2. Keep expanding anonymized real-world `.hbs` fixtures when a project exposes a new edge case.
-3. Decide the remaining policy for non-inline decorators.
-4. Keep expanding fuzz seeds whenever parser recovery learns a new edge case.
+3. Keep expanding fuzz seeds whenever parser recovery learns a new edge case.
+4. Keep moving more printer decisions from string assembly into Prettier docs where it reduces risk without making the output less predictable.
 
 The living backlog of concrete edge-case inputs sits in `test/conformance-cases.ts`.

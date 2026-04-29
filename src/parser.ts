@@ -8,6 +8,7 @@ import {
   BlockStatement,
   ElseBranch,
   PartialStatement,
+  DecoratorStatement,
   CommentStatement,
   HashPair,
   ParseEndReason,
@@ -208,6 +209,20 @@ function parseChildren(
 
       if (token.kind === 'partial') {
         nodes.push(createPartial(token.content, token.trimOpen, token.trimClose, rangeOffset + pos, rangeOffset + token.end));
+        pos = token.end;
+        continue;
+      }
+
+      if (token.specialForm === 'decorator') {
+        nodes.push(
+          createDecorator(
+            token.content.slice(1).trim(),
+            token.trimOpen,
+            token.trimClose,
+            rangeOffset + pos,
+            rangeOffset + token.end,
+          ),
+        );
         pos = token.end;
         continue;
       }
@@ -797,6 +812,16 @@ function parseTag(text: string, position: number):
         continue;
       }
 
+      // standalone decorator in the opening tag
+      if (token.specialForm === 'decorator') {
+        attributes.push({
+          type: 'AttributeBlock',
+          block: createDecorator(token.content.slice(1).trim(), token.trimOpen, token.trimClose, pos, token.end),
+        });
+        pos = token.end;
+        continue;
+      }
+
       // обычный {{ mustache }}
       if (token.kind === 'mustache') {
         attributes.push({
@@ -1122,8 +1147,8 @@ function stringifyMustacheForAttribute(node: MustacheStatement): string {
 function parseAttributeValueParts(
   value: string,
   rangeOffset = 0,
-): (TextNode | MustacheStatement | BlockStatement | PartialStatement | CommentStatement)[] {
-  const parts: (TextNode | MustacheStatement | BlockStatement | PartialStatement | CommentStatement)[] = [];
+): (TextNode | MustacheStatement | BlockStatement | PartialStatement | DecoratorStatement | CommentStatement)[] {
+  const parts: (TextNode | MustacheStatement | BlockStatement | PartialStatement | DecoratorStatement | CommentStatement)[] = [];
   let pos = 0;
 
   while (pos < value.length) {
@@ -1140,6 +1165,20 @@ function parseAttributeValueParts(
       // partial
       if (token.kind === 'partial') {
         parts.push(createPartial(token.content, token.trimOpen, token.trimClose, rangeOffset + pos, rangeOffset + token.end));
+        pos = token.end;
+        continue;
+      }
+
+      if (token.specialForm === 'decorator') {
+        parts.push(
+          createDecorator(
+            token.content.slice(1).trim(),
+            token.trimOpen,
+            token.trimClose,
+            rangeOffset + pos,
+            rangeOffset + token.end,
+          ),
+        );
         pos = token.end;
         continue;
       }
@@ -1380,7 +1419,7 @@ function findMatchingTagClose(text: string, tag: string, position: number, limit
 }
 
 function shouldPreserveMustacheVerbatim(token: MustacheToken): boolean {
-  return token.specialForm === 'decorator' || token.specialForm === 'elseIf';
+  return token.specialForm === 'elseIf';
 }
 
 function consumeUnsupportedBlock(text: string, position: number, openToken: MustacheToken): number {
@@ -1636,6 +1675,29 @@ function createPartial(content: string, trimOpen = false, trimClose = false, sta
   const { params, hash } = splitParams(tokens);
   const node: PartialStatement = {
     type: 'PartialStatement',
+    path,
+    params,
+    hash,
+  };
+
+  if (trimOpen) {
+    node.trimOpen = true;
+  }
+
+  if (trimClose) {
+    node.trimClose = true;
+  }
+
+  return withOptionalRange(node, start, end);
+}
+
+function createDecorator(content: string, trimOpen = false, trimClose = false, start?: number, end?: number): DecoratorStatement {
+  const normalized = normalizeExpression(content);
+  const tokens = tokenize(normalized);
+  const path = tokens.shift() || '';
+  const { params, hash } = splitParams(tokens);
+  const node: DecoratorStatement = {
+    type: 'DecoratorStatement',
     path,
     params,
     hash,

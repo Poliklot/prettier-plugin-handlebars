@@ -4,6 +4,7 @@ import {
   AttributeValue,
   BlockStatement,
   CommentStatement,
+  DecoratorStatement,
   ElementAttribute,
   ElementNode,
   ElseBranch,
@@ -21,7 +22,7 @@ const { stripTrailingHardline, willBreak } = utils;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
 const whitespaceSensitiveRawTextTags = new Set(['pre', 'textarea']);
 const trimmableRawTextTags = new Set(['script', 'style']);
-type PrintableExpression = MustacheStatement | BlockStatement | ElseBranch | PartialStatement;
+type PrintableExpression = MustacheStatement | BlockStatement | ElseBranch | PartialStatement | DecoratorStatement;
 
 function docHasHardline(doc: Doc): boolean {
   if (typeof doc === 'string') {
@@ -95,7 +96,7 @@ function getMustacheClosePadding(node: MustacheStatement, content: string): stri
   return node.trimClose && /\s/.test(content) ? ' ' : '';
 }
 
-function getTrimClosePadding(node: BlockStatement | ElseBranch | PartialStatement, content: string): string {
+function getTrimClosePadding(node: BlockStatement | ElseBranch | PartialStatement | DecoratorStatement, content: string): string {
   return node.trimClose && /\s/.test(content) ? ' ' : '';
 }
 
@@ -135,6 +136,25 @@ function getMaxEmptyLines(options: ParserOptions): number {
 export const printer: Printer<Node> = {
   getVisitorKeys(node, nonTraversableKeys) {
     return getHandlebarsVisitorKeys(node, nonTraversableKeys);
+  },
+  hasPrettierIgnore(path) {
+    const node = path.getValue() as Node | null;
+    return node?.type === 'CommentStatement' && hasCommentDirective(node as CommentStatement, 'prettier-ignore');
+  },
+  canAttachComment(node) {
+    return node.type !== 'CommentStatement' && node.type !== 'UnmatchedNode';
+  },
+  isBlockComment(node) {
+    return node.type === 'CommentStatement' && ((node as CommentStatement).block || (node as CommentStatement).multiline);
+  },
+  willPrintOwnComments(path) {
+    return (path.getValue() as Node | null)?.type === 'CommentStatement';
+  },
+  printComment(path, options) {
+    return printCommentStatement(path.getValue() as CommentStatement, options);
+  },
+  getCommentChildNodes(node) {
+    return getCommentChildNodes(node);
   },
   embed(path, options) {
     const node = path.getValue() as Node;
@@ -196,25 +216,14 @@ export const printer: Printer<Node> = {
         return node.value.replace(/\s+/g, ' ').trim();
       case 'MustacheStatement':
         return printMustache(node, options);
+      case 'DecoratorStatement':
+        return printDecorator(node as DecoratorStatement, options);
       case 'BlockStatement':
         return printBlock(path as AstPath<BlockStatement>, options, print);
       case 'PartialStatement':
         return printPartial(node, options);
       case 'CommentStatement':
-        if (node.multiline) {
-          return formatMultilineComment(node.value, options, node.inline);
-        }
-
-        if (!node.block && node.value.startsWith('<')) {
-          return concat(['{{!', node.value, '}}']);
-        }
-
-        if (node.block) {
-          const trimmedValue = typeof node.value === 'string' ? node.value.replace(/[ \t]+$/gm, '') : node.value;
-          return concat(['{{!-- ', trimmedValue, ' --}}']);
-        }
-
-        return concat(['{{! ', node.value, '}}']);
+        return printCommentStatement(node as CommentStatement, options);
       case 'UnmatchedNode':
         return (node as UnmatchedNode).raw;
       default:
@@ -247,6 +256,60 @@ function getNodeVisitorKeys(type: string | undefined): string[] {
     default:
       return [];
   }
+}
+
+function getCommentChildNodes(node: Node): Node[] | undefined {
+  switch (node.type) {
+    case 'Program':
+      return (node as Program).body;
+    case 'ElementNode': {
+      const element = node as ElementNode;
+      const attributeNodes = element.attributes.flatMap((attr) => {
+        if (attr.type === 'AttributeBlock') {
+          return [attr.block as Node];
+        }
+
+        if (attr.type === 'Attribute' && attr.value) {
+          return attr.value.parts as Node[];
+        }
+
+        return [];
+      });
+
+      return [...attributeNodes, ...(element.children as Node[])];
+    }
+    case 'BlockStatement': {
+      const block = node as BlockStatement;
+      return [
+        ...(block.program.body as Node[]),
+        ...((block.inverseChain ?? []).flatMap((branch) => branch.program.body) as Node[]),
+        ...(block.inverse.body as Node[]),
+      ];
+    }
+    default:
+      return [];
+  }
+}
+
+function hasCommentDirective(node: CommentStatement, directive: string): boolean {
+  return node.value.toLowerCase().includes(directive);
+}
+
+function printCommentStatement(node: CommentStatement, options: ParserOptions): Doc {
+  if (node.multiline) {
+    return formatMultilineComment(node.value, options, node.inline);
+  }
+
+  if (!node.block && node.value.startsWith('<')) {
+    return concat(['{{!', node.value, '}}']);
+  }
+
+  if (node.block) {
+    const trimmedValue = typeof node.value === 'string' ? node.value.replace(/[ \t]+$/gm, '') : node.value;
+    return concat(['{{!-- ', trimmedValue, ' --}}']);
+  }
+
+  return concat(['{{! ', node.value, '}}']);
 }
 
 function formatVerbatimText(content: string): Doc {
@@ -481,7 +544,7 @@ function canPrintRootInlineTextTemplate(nodes: Node[], options: ParserOptions): 
 }
 
 function isRootInlineTextTemplateChild(node: Node, index: number, nodes: Node[], options: ParserOptions): boolean {
-  if (node.type === 'MustacheStatement' || node.type === 'PartialStatement') {
+  if (node.type === 'MustacheStatement' || node.type === 'PartialStatement' || node.type === 'DecoratorStatement') {
     return true;
   }
 
@@ -1040,6 +1103,54 @@ function joinExpandedChildren(nodes: Node[], docs: Doc[]): Doc {
   return concat(parts);
 }
 
+function printBlockBody(children: Node[], docs: Doc[], options: ParserOptions): Doc {
+  if (docs.length === 0) {
+    return hardline;
+  }
+
+  if (canPrintInlineTextProgram(children, options)) {
+    return concat([indent(concat([hardline, stringifyInlineChildren(children, options)])), hardline]);
+  }
+
+  return concat([indent(concat([hardline, join(hardline, docs)])), hardline]);
+}
+
+function canPrintInlineTextProgram(nodes: Node[], options: ParserOptions): boolean {
+  return (
+    nodes.some((node) => node.type === 'TextNode') &&
+    nodes.every((node, index) => isInlineTextProgramChild(node, index, nodes, options))
+  );
+}
+
+function isInlineTextProgramChild(node: Node, index: number, nodes: Node[], options: ParserOptions): boolean {
+  if (node.type === 'MustacheStatement' || node.type === 'PartialStatement' || node.type === 'DecoratorStatement') {
+    return true;
+  }
+
+  if (node.type === 'CommentStatement') {
+    const comment = node as CommentStatement;
+    return !comment.block && !comment.multiline;
+  }
+
+  if (node.type === 'BlockStatement') {
+    return canInlineBlock(node as BlockStatement, options, 'Program');
+  }
+
+  if (node.type !== 'TextNode') {
+    return false;
+  }
+
+  const text = node as TextNode;
+  if (text.verbatim || text.blankLines || /[\r\n]/.test(text.value)) {
+    return false;
+  }
+
+  const leadingBreakAllowed = index === 0 || !hasLineBreak(text.leadingWhitespace);
+  const trailingBreakAllowed = index === nodes.length - 1 || !hasLineBreak(text.trailingWhitespace);
+
+  return leadingBreakAllowed && trailingBreakAllowed;
+}
+
 function stringifyInlineChildren(nodes: Node[], options?: ParserOptions): string {
   return nodes.reduce((result, child, index) => {
     const separator = index > 0 && shouldInsertInlineSeparator(nodes[index - 1], child) ? ' ' : '';
@@ -1203,6 +1314,9 @@ function stringifyNode(node: Node): string {
     case 'MustacheStatement': {
       const mustache = node as MustacheStatement;
       return stringifyMustache(mustache);
+    }
+    case 'DecoratorStatement': {
+      return stringifyDecorator(node as DecoratorStatement);
     }
     case 'PartialStatement': {
       const partial = node as PartialStatement;
@@ -1390,6 +1504,11 @@ function stringifyMustache(node: MustacheStatement): string {
   return `${open}${getTrimOpen(node)}${getMustacheOpenPadding(node, content)}${content}${getMustacheClosePadding(node, content)}${getTrimClose(node)}${close}`;
 }
 
+function stringifyDecorator(node: DecoratorStatement): string {
+  const content = buildExpression(node);
+  return `{{${getTrimOpen(node)}*${content}${getTrimClosePadding(node, content)}${getTrimClose(node)}}}`;
+}
+
 function printMustache(node: MustacheStatement, options: ParserOptions): Doc {
   const content = buildExpression(node);
   const open = node.triple ? '{{{' : '{{';
@@ -1431,6 +1550,45 @@ function printMustache(node: MustacheStatement, options: ParserOptions): Doc {
   ]);
 }
 
+function printDecorator(node: DecoratorStatement, options: ParserOptions): Doc {
+  const content = buildExpression(node);
+  const expressionPartCount = node.hash.length + node.params.length;
+  const canWrapPlainParams = !node.params.some(shouldKeepParamInline);
+  const shouldMultiline =
+    expressionPartCount > 1 &&
+    canWrapPlainParams &&
+    content.length > getPrintWidth(options);
+
+  if (shouldMultiline) {
+    const paramsDocs: Doc[] = [];
+    node.params.forEach((param) => paramsDocs.push(param));
+    node.hash.forEach((pair) => paramsDocs.push(formatHash(pair)));
+
+    return group(
+      concat([
+        '{{',
+        getTrimOpen(node),
+        '*',
+        node.path,
+        indent(concat([hardline, join(hardline, paramsDocs)])),
+        hardline,
+        getTrimClose(node),
+        '}}',
+      ]),
+    );
+  }
+
+  return concat([
+    '{{',
+    getTrimOpen(node),
+    '*',
+    content,
+    getTrimClosePadding(node, content),
+    getTrimClose(node),
+    '}}',
+  ]);
+}
+
 function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {
   const node = path.getValue();
   const parentNode = path.getParentNode() as Node | undefined;
@@ -1456,8 +1614,7 @@ function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print
     }, 'body');
   }, 'program');
 
-  const body =
-    bodyDocs.length > 0 ? concat([indent(concat([hardline, join(hardline, bodyDocs)])), hardline]) : hardline;
+  const body = printBlockBody(node.program.body as Node[], bodyDocs, options);
 
   const inverseParts: Doc[] = [];
   (node.inverseChain ?? []).forEach((branch, index) => {
@@ -1477,8 +1634,7 @@ function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print
       }, 'body');
     }, 'inverseChain', index, 'program');
 
-    const branchBody =
-      branchDocs.length > 0 ? concat([indent(concat([hardline, join(hardline, branchDocs)])), hardline]) : hardline;
+    const branchBody = printBlockBody(branch.program.body as Node[], branchDocs, options);
     inverseParts.push(concat([printElseBranchOpen(branch), branchBody]));
   });
 
@@ -1498,7 +1654,7 @@ function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print
         inverseDocs.push(doc);
       }, 'body');
     }, 'inverse');
-    inverseParts.push(concat([printFinalElseOpen(node), indent(concat([hardline, join(hardline, inverseDocs)])), hardline]));
+    inverseParts.push(concat([printFinalElseOpen(node), printBlockBody(node.inverse.body as Node[], inverseDocs, options)]));
   }
 
   const inverse = inverseParts.length > 0 ? concat(inverseParts) : '';

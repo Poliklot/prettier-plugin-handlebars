@@ -5,6 +5,7 @@ export type Node =
   | MustacheStatement
   | BlockStatement
   | PartialStatement
+  | DecoratorStatement
   | CommentStatement
   | UnmatchedNode;
 
@@ -27,6 +28,7 @@ export type AttributeValuePart =
   | MustacheStatement
   | BlockStatement
   | PartialStatement
+  | DecoratorStatement
   | CommentStatement;
 
 export type ElementAttribute =
@@ -41,7 +43,7 @@ export type ElementAttribute =
     }
   | {
       type: 'AttributeBlock';
-      block: MustacheStatement | BlockStatement | PartialStatement | CommentStatement;
+      block: MustacheStatement | BlockStatement | PartialStatement | DecoratorStatement | CommentStatement;
     };
 
 export interface ElementNode extends SourceRange {
@@ -101,6 +103,10 @@ export interface BlockStatement extends MustacheBase, SourceRange {
 
 export interface PartialStatement extends MustacheBase, SourceRange {
   type: 'PartialStatement';
+}
+
+export interface DecoratorStatement extends MustacheBase, SourceRange {
+  type: 'DecoratorStatement';
 }
 
 export interface CommentStatement extends SourceRange {

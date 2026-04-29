@@ -383,6 +383,56 @@ describe('class with condition', () => {
   });
 });
 
+describe('decorators', () => {
+  it('formats standalone decorators with helper-like spacing', async () => {
+    const output = await format('{{*log value level="debug"}}');
+
+    expect(output).toBe('{{*log value level="debug"}}\n');
+  });
+
+  it('preserves trim markers on standalone decorators', async () => {
+    const output = await format('{{~*log value~}}');
+
+    expect(output).toBe('{{~*log value ~}}\n');
+  });
+
+  it('wraps long standalone decorator params like other callable statements', async () => {
+    const output = await format(
+      '{{*decorate target firstParam secondParam thirdParam fourthParam enabled=true mode="large"}}',
+      { printWidth: 60 },
+    );
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{*decorate
+        target
+        firstParam
+        secondParam
+        thirdParam
+        fourthParam
+        enabled=true
+        mode="large"
+      }}
+    `));
+  });
+
+  it('formats non-inline decorator blocks instead of preserving them raw', async () => {
+    const input = stripIndent(`
+      {{#*decorate value=true}}
+      <span>{{label}}</span>
+      {{/decorate}}
+    `);
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{#*decorate value=true}}
+        <span>
+          {{ label }}
+        </span>
+      {{/decorate}}
+    `));
+  });
+});
+
 describe('boolean attributes', () => {
   it('preserves empty values for data attributes', async () => {
     const input = `<a class="class" data-form-button="">Link</a>`;
@@ -1726,7 +1776,7 @@ describe('inline child elements', () => {
     );
   });
 
-  it('indents inline children that contain conditional blocks', async () => {
+  it('keeps inline text inside conditional blocks together', async () => {
     const input = '<span class="button__label">Buy{{#if count}} ({{ count }}){{/if}}</span>';
 
     const output = await format(input, { printWidth: 80 });
@@ -1736,9 +1786,7 @@ describe('inline child elements', () => {
         <span class="button__label">
           Buy
           {{#if count}}
-            (
-            {{ count }}
-            )
+            ({{ count }})
           {{/if}}
         </span>
       `),

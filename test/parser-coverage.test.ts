@@ -4,6 +4,7 @@ import { printer } from '../src/printer';
 import type {
   BlockStatement,
   CommentStatement,
+  DecoratorStatement,
   ElementAttribute,
   ElementNode,
   MustacheStatement,
@@ -106,6 +107,17 @@ describe('simple parser coverage', () => {
         { key: 'title', value: 'title' },
         { key: 'featured', value: 'true' },
       ],
+    });
+  });
+
+  it('parses standalone decorators with params and hash pairs', () => {
+    const decorator = firstNode<DecoratorStatement>('{{*log value level="debug"}}');
+
+    expect(decorator).toMatchObject({
+      type: 'DecoratorStatement',
+      path: 'log',
+      params: ['value'],
+      hash: [{ key: 'level', value: '"debug"' }],
     });
   });
 

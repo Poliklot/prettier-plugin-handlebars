@@ -282,6 +282,27 @@ export const readyCases: ConformanceCase[] = [
     `),
   },
   {
+    id: 'decorators',
+    name: 'formats standalone decorators and decorator blocks',
+    area: 'core-syntax',
+    priority: 'medium',
+    rationale: 'Not every team uses decorators, but open-source users will hit them.',
+    source: stripIndent(`
+      {{*log value level="debug"}}
+      {{#*decorate value=true}}
+        <span>{{ label }}</span>
+      {{/decorate}}
+    `),
+    expected: withTrailingNewline(`
+      {{*log value level="debug"}}
+      {{#*decorate value=true}}
+        <span>
+          {{ label }}
+        </span>
+      {{/decorate}}
+    `),
+  },
+  {
     id: 'nested-block-indentation',
     name: 'indents nested blocks without collapsing structure',
     area: 'core-syntax',
@@ -346,18 +367,6 @@ export const backlogCases: ConformanceCase[] = [
     priority: 'high',
     rationale: 'Dynamic composition is common in CMS-style projects.',
     source: `{{> (lookup . "partialName") data=this}}`,
-  },
-  {
-    id: 'decorators',
-    name: 'preserves decorators and decorator blocks',
-    area: 'core-syntax',
-    priority: 'medium',
-    rationale: 'Not every team uses decorators, but open source users will hit them.',
-    source: stripIndent(`
-      {{#*inline "button"}}
-        <button>{{ label }}</button>
-      {{/inline}}
-    `),
   },
   {
     id: 'nested-subexpressions',

@@ -5,6 +5,17 @@ import * as plugin from '../src/plugin';
 
 type Partials = Record<string, string>;
 
+function stripIndent(input: string): string {
+  const withoutEdgeNewlines = input.replace(/^\n/, '').replace(/\s*$/, '');
+  const lines = withoutEdgeNewlines.split('\n');
+  const indents = lines
+    .filter((line) => line.trim().length > 0)
+    .map((line) => line.match(/^(\s*)/)?.[1].length ?? 0);
+  const minIndent = indents.length > 0 ? Math.min(...indents) : 0;
+
+  return `${lines.map((line) => line.slice(minIndent)).join('\n')}\n`;
+}
+
 async function format(source: string): Promise<string> {
   return prettier.format(source, {
     parser: 'handlebars',
@@ -68,6 +79,35 @@ describe('semantic render stability', () => {
     await expectRenderStable('{{{{raw}}}}{{value}}{{{{/raw}}}}\n', {
       value: 'ignored',
     });
+  });
+
+  it('preserves block partial output', async () => {
+    const source = stripIndent(`
+      {{#> layout title=title}}
+        Hello, {{name}}!
+      {{/layout}}
+    `);
+
+    await expectRenderStable(source, { title: 'Greeting', name: 'Igor' }, {
+      layout: '<section><h1>{{title}}</h1>{{> @partial-block}}</section>',
+    });
+  });
+
+  it('preserves inline partial definition output', async () => {
+    const source = stripIndent(`
+      {{#*inline "greeting"}}
+        Hello, {{name}}!
+      {{/inline}}
+      {{> greeting}}
+    `);
+
+    await expectRenderStable(source, { name: 'Igor' });
+  });
+
+  it('preserves whitespace-sensitive pre output', async () => {
+    const source = '<pre>\n  Hello, {{name}}!\n</pre>\n';
+
+    await expectRenderStable(source, { name: 'Igor' });
   });
 
   it('preserves comment-stripped output', async () => {
