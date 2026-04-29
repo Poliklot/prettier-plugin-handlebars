@@ -76,6 +76,27 @@ describe('attribute quotes and trim markers', () => {
     expect(output).toBe(stripIndentWithNL(`<img src="{{ imgSrc }}" alt="{{orString imgAlt}}" />`));
   });
 
+  it('keeps slashes inside unquoted URL attributes with mustaches', async () => {
+    const input = `<a href=/foo/{{slug}}>Link</a>`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`<a href="/foo/{{ slug }}">Link</a>`));
+  });
+
+  it('keeps query strings inside unquoted URL attributes with mustaches', async () => {
+    const input = `<a href=/p?id={{id}}&x=1>Link</a>`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`<a href="/p?id={{ id }}&x=1">Link</a>`));
+  });
+
+  it('does not eat the self-closing slash after an unquoted URL mustache', async () => {
+    const input = `<img src=/foo/{{slug}}/>`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`<img src="/foo/{{ slug }}" />`));
+  });
+
   it('preserves whitespace-control markers inside attribute values', async () => {
     const input = `<div title="{{~ label ~}}"></div>`;
     const output = await format(input);
@@ -454,6 +475,12 @@ describe('inline text adjacency', () => {
     expect(output).toBe('Hello, {{ name }}!\n');
   });
 
+  it('preserves escaped mustaches as literal text', async () => {
+    const output = await format('Hello, \\{{name}} and {{value}}');
+
+    expect(output).toBe('Hello, \\{{name}} and {{ value }}\n');
+  });
+
   it('keeps root-level label templates inline', async () => {
     const output = await format('Author: {{author}}\n');
 
@@ -705,6 +732,39 @@ describe('mustache spacing', () => {
       {{#if item}}
       {{/if}}
     `));
+  });
+
+  it('keeps unescaped ampersand statements tight', async () => {
+    const output = await format('{{& html}}');
+
+    expect(output).toBe(stripIndentWithNL('{{& html}}'));
+  });
+
+  it('preserves trim markers on triple-stash statements', async () => {
+    const output = await format('{{{~html~}}}');
+
+    expect(output).toBe(stripIndentWithNL('{{{~ html ~}}}'));
+  });
+
+  it('does not close a mustache on braces inside quoted params', async () => {
+    const output = await format('{{helper "a }} b" value}}');
+
+    expect(output).toBe(stripIndentWithNL('{{helper "a }} b" value}}'));
+  });
+
+  it('keeps escaped quotes inside quoted params', async () => {
+    const input = String.raw`{{helper "a \"b\" c" value}}`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(String.raw`{{helper "a \"b\" c" value}}`));
+  });
+});
+
+describe('inverse sections', () => {
+  it('formats inverse sections as first-class handlebars blocks', async () => {
+    const output = await format('{{^items}}empty{{/items}}');
+
+    expect(output).toBe(stripIndentWithNL('{{^items}}empty{{/items}}'));
   });
 });
 
@@ -1295,6 +1355,21 @@ describe('comments and recovery', () => {
       {{#if visible}}
         {{{{raw}}}}<span>{{ value }}</span>
       {{/if}}
+    `));
+  });
+
+  it('preserves raw blocks with trim markers and params', async () => {
+    const input = stripIndent(`
+      {{{{~raw-helper mode="html"}}}}
+        <span>{{value}}</span>
+      {{{{/raw-helper~}}}}
+    `);
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{{{~raw-helper mode="html"}}}}
+        <span>{{value}}</span>
+      {{{{/raw-helper~}}}}
     `));
   });
 });

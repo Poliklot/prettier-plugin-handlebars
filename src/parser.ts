@@ -130,7 +130,7 @@ function parseChildren(
       return { nodes, position: pos, endReason: 'tagClose' };
     }
 
-    if (text.startsWith('{{', pos)) {
+    if (text.startsWith('{{', pos) && !isEscapedHandlebarsOpen(text, pos)) {
       const token = parseMustacheToken(text, pos);
 
       if (shouldPreserveMustacheVerbatim(token) && !(endBlock && token.kind === 'else')) {
@@ -406,7 +406,7 @@ function hasMatchingBlockEnd(text: string, token: MustacheToken, start: number):
   let pos = start + 1;
 
   while (pos < text.length) {
-    const next = text.indexOf('{{', pos);
+    const next = findNextHandlebarsOpen(text, pos);
     if (next === -1) {
       return false;
     }
@@ -547,13 +547,17 @@ function getBlockExpression(token: MustacheToken): string {
   return token.content.slice(1).trim();
 }
 
-function getBlockPrefix(token: MustacheToken): '#' | '#>' | '#*' {
+function getBlockPrefix(token: MustacheToken): '#' | '#>' | '#*' | '^' {
   if (token.specialForm === 'blockPartial') {
     return '#>';
   }
 
   if (token.specialForm === 'decoratorBlock') {
     return '#*';
+  }
+
+  if (token.specialForm === 'inverseBlock') {
+    return '^';
   }
 
   return '#';
@@ -614,7 +618,7 @@ function findPrettierIgnoreEnd(text: string, position: number): number | null {
   let pos = position;
 
   while (pos < text.length) {
-    const next = text.indexOf('{{', pos);
+    const next = findNextHandlebarsOpen(text, pos);
 
     if (next === -1) {
       return null;
@@ -638,7 +642,7 @@ function consumeNextNode(text: string, position: number): number {
     return position;
   }
 
-  if (text.startsWith('{{', position)) {
+  if (text.startsWith('{{', position) && !isEscapedHandlebarsOpen(text, position)) {
     const token = parseMustacheToken(text, position);
 
     if (token.kind === 'blockStart') {
@@ -690,7 +694,7 @@ interface MustacheToken {
   rawInner: string;
   trimOpen: boolean;
   trimClose: boolean;
-  specialForm?: 'blockPartial' | 'decoratorBlock' | 'decorator' | 'elseIf';
+  specialForm?: 'blockPartial' | 'decoratorBlock' | 'decorator' | 'elseIf' | 'inverseBlock';
 }
 
 function parseMustacheToken(text: string, position: number): MustacheToken {
@@ -699,7 +703,9 @@ function parseMustacheToken(text: string, position: number): MustacheToken {
   const isBlockComment = text.startsWith('{{!--', position) || text.startsWith('{{{!--', position);
   const close = triple ? '}}}' : '}}';
   const closeDelimiter = isBlockComment ? `--${close}` : close;
-  const closeIdx = text.indexOf(closeDelimiter, position + openLength);
+  const closeIdx = isBlockComment
+    ? text.indexOf(closeDelimiter, position + openLength)
+    : findMustacheClose(text, position + openLength, closeDelimiter);
   const end = closeIdx >= 0 ? closeIdx + closeDelimiter.length : text.length;
   const rawContent = text.slice(position + openLength, closeIdx >= 0 ? closeIdx : undefined);
   const rawInner = rawContent.trim();
@@ -744,6 +750,11 @@ function parseMustacheToken(text: string, position: number): MustacheToken {
     return { kind: 'blockStart', content: inner, name, ...baseToken };
   }
 
+  if (inner.startsWith('^')) {
+    const name = inner.slice(1).trim().split(/\s+/)[0];
+    return { kind: 'blockStart', content: inner, name, specialForm: 'inverseBlock', ...baseToken };
+  }
+
   if (inner.startsWith('/')) {
     const name = inner.slice(1).trim();
     return { kind: 'blockEnd', content: inner, name, ...baseToken };
@@ -760,6 +771,53 @@ function parseMustacheToken(text: string, position: number): MustacheToken {
   }
 
   return { kind: 'mustache', content: inner, name: undefined, ...baseToken };
+}
+
+function findMustacheClose(text: string, position: number, closeDelimiter: string): number {
+  let quote: '"' | "'" | '`' | null = null;
+  let escaped = false;
+
+  for (let index = position; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (quote) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+
+      if (char === quote) {
+        quote = null;
+      }
+
+      continue;
+    }
+
+    if ((char === '"' || char === "'" || char === '`') && isExpressionQuoteStart(text, index, position)) {
+      quote = char;
+      continue;
+    }
+
+    if (text.startsWith(closeDelimiter, index)) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function isExpressionQuoteStart(text: string, position: number, expressionStart = 0): boolean {
+  if (position <= expressionStart) {
+    return true;
+  }
+
+  const previous = text[position - 1];
+  return !previous || whitespace.test(previous) || /[([{=,:~|]/.test(previous);
 }
 
 function parseTag(text: string, position: number):
@@ -789,7 +847,7 @@ function parseTag(text: string, position: number):
       continue;
     }
 
-    if (text.startsWith('{{', pos)) {
+    if (text.startsWith('{{', pos) && !isEscapedHandlebarsOpen(text, pos)) {
       const token = parseMustacheToken(text, pos);
 
       // комментарий в голове тега
@@ -952,11 +1010,15 @@ function parseAttribute(text: string, position: number): { attribute: ElementAtt
   } else {
     const start = pos;
     valueStart = start;
-    while (pos < text.length && text[pos] !== '>' && text[pos] !== '/') {
-      if (text.startsWith('{{', pos)) {
+    while (pos < text.length && text[pos] !== '>') {
+      if (text.startsWith('{{', pos) && !isEscapedHandlebarsOpen(text, pos)) {
         const token = parseMustacheToken(text, pos);
         pos = token.end;
         continue;
+      }
+
+      if (isSelfClosingSlash(text, pos)) {
+        break;
       }
 
       if (whitespace.test(text[pos])) {
@@ -991,7 +1053,7 @@ function parseDynamicAttribute(
   let hasStaticPart = false;
 
   while (pos < text.length) {
-    if (text.startsWith('{{', pos)) {
+    if (text.startsWith('{{', pos) && !isEscapedHandlebarsOpen(text, pos)) {
       const token = parseMustacheToken(text, pos);
 
       if (token.kind !== 'mustache') {
@@ -1039,8 +1101,12 @@ function parseDynamicAttribute(
     pos += 1;
     pos = readQuotedAttributeValue(text, pos, quote).position;
   } else {
-    while (pos < text.length && !whitespace.test(text[pos]) && text[pos] !== '>' && text[pos] !== '/') {
-      if (text.startsWith('{{', pos)) {
+    while (pos < text.length && !whitespace.test(text[pos]) && text[pos] !== '>') {
+      if (isSelfClosingSlash(text, pos)) {
+        break;
+      }
+
+      if (text.startsWith('{{', pos) && !isEscapedHandlebarsOpen(text, pos)) {
         const token = parseMustacheToken(text, pos);
         pos = token.end;
         continue;
@@ -1152,7 +1218,7 @@ function parseAttributeValueParts(
   let pos = 0;
 
   while (pos < value.length) {
-    if (value.startsWith('{{', pos)) {
+    if (value.startsWith('{{', pos) && !isEscapedHandlebarsOpen(value, pos)) {
       const token = parseMustacheToken(value, pos);
 
       // комментарий
@@ -1225,7 +1291,7 @@ function parseAttributeValueParts(
       continue;
     }
 
-    const next = value.indexOf('{{', pos);
+    const next = findNextHandlebarsOpen(value, pos);
     const end = next === -1 ? value.length : next;
     const rawText = value.slice(pos, end);
 
@@ -1247,7 +1313,7 @@ function readQuotedAttributeValue(
   let pos = position;
 
   while (pos < text.length) {
-    if (text.startsWith('{{', pos)) {
+    if (text.startsWith('{{', pos) && !isEscapedHandlebarsOpen(text, pos)) {
       const token = parseMustacheToken(text, pos);
       pos = token.end > pos ? token.end : pos + 2;
       continue;
@@ -1277,6 +1343,42 @@ function readName(text: string, position: number): { value: string; next: number
   return { value: text.slice(position, pos), next: pos };
 }
 
+function isEscapedHandlebarsOpen(text: string, position: number): boolean {
+  if (!text.startsWith('{{', position)) {
+    return false;
+  }
+
+  let slashCount = 0;
+  for (let index = position - 1; index >= 0 && text[index] === '\\'; index -= 1) {
+    slashCount += 1;
+  }
+
+  return slashCount % 2 === 1;
+}
+
+function findNextHandlebarsOpen(text: string, position: number): number {
+  let searchPos = position;
+
+  while (searchPos < text.length) {
+    const candidate = text.indexOf('{{', searchPos);
+    if (candidate === -1) {
+      return -1;
+    }
+
+    if (!isEscapedHandlebarsOpen(text, candidate)) {
+      return candidate;
+    }
+
+    searchPos = candidate + 2;
+  }
+
+  return -1;
+}
+
+function isSelfClosingSlash(text: string, position: number): boolean {
+  return text[position] === '/' && text[position + 1] === '>';
+}
+
 function findNextMarkup(text: string, position: number): number {
   let next = text.length;
   let searchPos = position;
@@ -1300,7 +1402,7 @@ function findNextMarkup(text: string, position: number): number {
     searchPos = candidate + 1;
   }
 
-  const hb = text.indexOf('{{', position);
+  const hb = findNextHandlebarsOpen(text, position);
   if (hb !== -1 && hb < next) {
     next = hb;
   }
@@ -1312,7 +1414,7 @@ function findCurrentBlockBoundary(text: string, position: number, endBlock: stri
   let pos = position;
 
   while (pos < text.length) {
-    const next = text.indexOf('{{', pos);
+    const next = findNextHandlebarsOpen(text, pos);
     if (next === -1) {
       return -1;
     }
@@ -1431,7 +1533,7 @@ function consumeUnsupportedBlock(text: string, position: number, openToken: Must
   let pos = openToken.end;
 
   while (pos < text.length) {
-    const next = text.indexOf('{{', pos);
+    const next = findNextHandlebarsOpen(text, pos);
     if (next === -1) {
       return text.length;
     }
@@ -1463,20 +1565,21 @@ function consumeRawBlock(text: string, position: number): number | null {
     return text.length;
   }
 
-  const openInner = text.slice(position + 4, openIdx).trim();
+  const openInner = text.slice(position + 4, openIdx).trim().replace(/^~/, '').replace(/~$/, '').trim();
   if (!openInner || openInner.startsWith('/')) {
     return null;
   }
 
   const name = openInner.split(/\s+/)[0];
-  const closeTag = `{{{{/${name}}}}}`;
-  const closeStart = text.indexOf(closeTag, openIdx + 4);
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const closePattern = new RegExp(`{{{{\\s*~?\\/\\s*${escapedName}\\s*~?\\s*}}}}`);
+  const closeMatch = closePattern.exec(text.slice(openIdx + 4));
 
-  if (closeStart === -1) {
+  if (!closeMatch) {
     return text.length;
   }
 
-  return closeStart + closeTag.length;
+  return openIdx + 4 + closeMatch.index + closeMatch[0].length;
 }
 
 function findRawTextClose(text: string, position: number, tag: string): number {
@@ -1777,7 +1880,7 @@ function normalizeExpression(content: string): string {
 function tokenize(content: string): string[] {
   const tokens: string[] = [];
   let current = '';
-  let quote: '"' | "'" | null = null;
+  let quote: '"' | "'" | '`' | null = null;
   let parenDepth = 0;
   let bracketDepth = 0;
   let braceDepth = 0;
@@ -1787,13 +1890,20 @@ function tokenize(content: string): string[] {
 
     if (quote) {
       current += char;
+
+      if (char === '\\' && i + 1 < content.length) {
+        i += 1;
+        current += content[i];
+        continue;
+      }
+
       if (char === quote) {
         quote = null;
       }
       continue;
     }
 
-    if (char === '"' || char === "'") {
+    if ((char === '"' || char === "'" || char === '`') && isExpressionQuoteStart(content, i)) {
       current += char;
       quote = char;
       continue;

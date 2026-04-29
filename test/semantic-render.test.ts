@@ -63,9 +63,34 @@ describe('semantic render stability', () => {
     await expectRenderStable(source, { ok: false });
   });
 
+  it('preserves escaped mustache output', async () => {
+    await expectRenderStable('Hello, \\{{name}} and {{name}}!\n', {
+      name: 'Igor',
+    });
+  });
+
+  it('preserves inverse section output', async () => {
+    const source = '{{^items}}empty{{/items}}\n';
+
+    await expectRenderStable(source, { items: [] });
+    await expectRenderStable(source, { items: ['ready'] });
+  });
+
+  it('preserves unescaped ampersand output', async () => {
+    await expectRenderStable('{{& html}}\n', {
+      html: '<strong>ok</strong>',
+    });
+  });
+
   it('preserves partial invocation output', async () => {
     await expectRenderStable('{{> greeting name=name}}\n', { name: 'Igor' }, {
       greeting: 'Hello, {{name}}!\n',
+    });
+  });
+
+  it('preserves whitespace-control partial output', async () => {
+    await expectRenderStable('A {{~> name~}} B\n', { name: 'Igor' }, {
+      name: ' {{name}} ',
     });
   });
 

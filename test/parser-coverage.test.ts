@@ -96,6 +96,45 @@ describe('simple parser coverage', () => {
     });
   });
 
+  it('keeps escaped mustaches as text', () => {
+    const text = firstNode<TextNode>('\\{{value}}');
+
+    expect(text).toMatchObject({
+      type: 'TextNode',
+      value: '\\{{value}}',
+    });
+  });
+
+  it('parses inverse sections as block statements', () => {
+    const block = firstNode<BlockStatement>('{{^items}}empty{{/items}}');
+
+    expect(block).toMatchObject({
+      type: 'BlockStatement',
+      path: 'items',
+      blockPrefix: '^',
+    });
+  });
+
+  it('does not close mustaches on braces inside quoted params', () => {
+    const mustache = firstNode<MustacheStatement>('{{helper "a }} b" value}}');
+
+    expect(mustache).toMatchObject({
+      type: 'MustacheStatement',
+      path: 'helper',
+      params: ['"a }} b"', 'value'],
+    });
+  });
+
+  it('keeps escaped quotes inside quoted params', () => {
+    const mustache = firstNode<MustacheStatement>(String.raw`{{helper "a \"b\" c" value}}`);
+
+    expect(mustache).toMatchObject({
+      type: 'MustacheStatement',
+      path: 'helper',
+      params: [String.raw`"a \"b\" c"`, 'value'],
+    });
+  });
+
   it('parses partials with hash pairs', () => {
     const partial = firstNode<PartialStatement>("{{> card title=title featured=true}}");
 
@@ -145,6 +184,23 @@ describe('simple parser coverage', () => {
         },
       },
     ]);
+  });
+
+  it('parses unquoted URL attributes with slash-prefixed mustache values', () => {
+    const input = firstElement('<a href=/foo/{{slug}}>Link</a>');
+    const attr = input.attributes[0];
+
+    expect(attr).toMatchObject({
+      type: 'Attribute',
+      name: 'href',
+      value: {
+        type: 'AttributeValue',
+        parts: [
+          { type: 'TextNode', value: '/foo/' },
+          { type: 'MustacheStatement', path: 'slug' },
+        ],
+      },
+    });
   });
 
   it('preserves invalid closing tags on void elements as unmatched source', () => {

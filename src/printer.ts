@@ -104,7 +104,7 @@ function shouldKeepParamInline(param: string): boolean {
   return param.includes('\n') || /^\(parseJSON\s+['"`]/.test(param.trim());
 }
 
-function getBlockPrefix(node: BlockStatement): '#' | '#>' | '#*' {
+function getBlockPrefix(node: BlockStatement): '#' | '#>' | '#*' | '^' {
   return node.blockPrefix ?? '#';
 }
 
@@ -1256,7 +1256,8 @@ function canInlineBlock(
   options: ParserOptions,
   parentType: Node['type'] | undefined,
 ): boolean {
-  if (getBlockPrefix(node) !== '#') {
+  const blockPrefix = getBlockPrefix(node);
+  if (blockPrefix !== '#' && blockPrefix !== '^') {
     return false;
   }
 

@@ -96,7 +96,7 @@ export interface BlockStatement extends MustacheBase, SourceRange {
   inverseTrimOpen?: boolean;
   inverseTrimClose?: boolean;
   rawOpen: string;
-  blockPrefix?: '#' | '#>' | '#*';
+  blockPrefix?: '#' | '#>' | '#*' | '^';
   closeTrimOpen?: boolean;
   closeTrimClose?: boolean;
 }
