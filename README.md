@@ -8,8 +8,11 @@ It is built for `.hbs` / `.handlebars` codebases that use classic Handlebars pat
 
 - HTML + Handlebars in the same tree
 - partials and long partial params
+- helpers with positional params, hash params, and nested subexpressions
 - block partials and inline partial definitions
+- `{{else if ...}}` branch chains
 - block helpers inside attributes
+- Handlebars inside quoted and unquoted attribute values
 - multiline `class=""` values with helpers
 - whitespace control markers
 - raw Handlebars blocks
@@ -194,19 +197,74 @@ Maximum number of consecutive blank lines preserved between nodes.
 ## What The Plugin Handles Today
 
 - HTML elements, void elements, comments, and custom elements
-- `{{mustache}}`, `{{{triple-stash}}}`, block helpers, `{{else}}`, partials
+- `{{mustache}}`, `{{{triple-stash}}}`, block helpers, `{{else}}`, `{{else if ...}}`, partials
 - whitespace control markers such as `{{~ value ~}}` and `{{~/if~}}`
 - raw blocks such as `{{{{raw}}}}...{{{{/raw}}}}`
 - block partials such as `{{#> layout}}...{{/layout}}`
 - inline partial definitions such as `{{#*inline "name"}}...{{/inline}}`
 - Handlebars inside attribute values
+- unquoted mustache attribute values such as `src={{ imgSrc }}`
 - Handlebars blocks that emit attributes
 - multiline class formatting with conditional modifiers
+- comparison helper operators such as `{{#ifCompare a '===' b}}`
+- hash params written as `key=value`, `key= value`, or `key = value`
+- long helper and partial calls with nested subexpressions
 - `prettier-ignore`, `prettier-ignore-start`, `prettier-ignore-end`
 - raw `script` / `style` text preservation
 - literal `pre` / `textarea` text preservation
 - unmatched / incomplete structures preserved as raw nodes instead of crashing
 - recovery for some broken formatter output, such as split dynamic attribute names
+
+## Real-World Examples
+
+### `else if` chains
+
+```hbs
+{{#if primary}}
+  Primary
+{{else if secondary}}
+  Secondary
+{{else}}
+  Fallback
+{{/if}}
+```
+
+### Conditional class values
+
+```hbs
+<div
+  class="
+    card
+    {{#if isPrimary}}
+      card--primary
+    {{else if isSecondary}}
+      card--secondary
+    {{/if}}
+  "
+></div>
+```
+
+### Partial params with relaxed spacing
+
+```hbs
+{{> 'ui/input-primary/input-primary'
+  id='compare-family-name'
+  type='text'
+  placeholder='Family name'
+}}
+```
+
+The parser accepts common source styles such as `id= 'value'` and `type = 'text'`, then prints them consistently as hash params.
+
+### Classic comparison helpers
+
+```hbs
+{{#ifCompare ../activeIndex '===' @index}}
+  active
+{{/ifCompare}}
+```
+
+Operators like `'==='`, `'!=='`, `'>'`, and `'<'` are kept as positional params instead of being mistaken for hash pairs.
 
 ## Current Limits
 
@@ -214,7 +272,6 @@ This is still a `0.x` formatter.
 
 The highest-priority unsupported or not-yet-finished areas include:
 
-- richer formatting for `{{else if ...}}` chains
 - decorators outside inline partial definitions
 - embedded JavaScript / CSS formatting inside `script` / `style` tags; these sections are preserved safely today
 - more dialect-specific syntax outside classic Handlebars, especially Glimmer / Ember-only constructs
