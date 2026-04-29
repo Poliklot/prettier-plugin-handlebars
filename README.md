@@ -290,6 +290,8 @@ Useful scripts:
 - `npm test` - run the full automated suite
 - `npm run check` - build + test
 - `npm run corpus:check -- <path> [more-paths...]` - run an idempotence / crash-safety sweep over real template corpora
+- `npm run corpus:oss` - clone and check a public OSS corpus from Ghost themes, Ghost classic templates, WET, `express-hbs`, `pillarjs/hbs`, and other real `.hbs` projects
+- `npm run format:hbs-tree -- <path>` - format every `.hbs` / `.handlebars` file under a temp project copy before running that project's own build
 - `PRETTIER_VERSION=3.2 npm run smoke:install` - pack the plugin, install it into a clean temp project, format a sample, and verify that `handlebars` is not installed
 - `npm run pack:check` - inspect npm package contents with `npm pack --dry-run`
 

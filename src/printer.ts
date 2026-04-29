@@ -20,6 +20,7 @@ const { hardline, join, group, indent, line, softline, ifBreak, lineSuffix, line
 const { willBreak } = utils;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
 const whitespaceSensitiveRawTextTags = new Set(['pre', 'textarea']);
+const trimmableRawTextTags = new Set(['script', 'style']);
 type PrintableExpression = MustacheStatement | BlockStatement | ElseBranch | PartialStatement;
 
 function docHasHardline(doc: Doc): boolean {
@@ -146,7 +147,11 @@ export const printer: Printer<Node> = {
             return node.value;
           }
 
-          return formatVerbatimText(node.value);
+          const parentNode = path.getParentNode() as Node | null;
+          const value = shouldTrimRawTextBoundaryWhitespace(parentNode, node)
+            ? trimRawTextBoundaryWhitespace(node.value)
+            : node.value;
+          return formatVerbatimText(value);
         }
 
         if (node.blankLines) {
@@ -165,6 +170,10 @@ export const printer: Printer<Node> = {
       case 'CommentStatement':
         if (node.multiline) {
           return formatMultilineComment(node.value, options, node.inline);
+        }
+
+        if (!node.block && node.value.startsWith('<')) {
+          return concat(['{{!', node.value, '}}']);
         }
 
         if (node.block) {
@@ -235,6 +244,19 @@ function formatVerbatimText(content: string): Doc {
   });
 
   return concat(docs);
+}
+
+function shouldTrimRawTextBoundaryWhitespace(parentNode: Node | null, node: TextNode): boolean {
+  return (
+    parentNode?.type === 'ElementNode' &&
+    trimmableRawTextTags.has((parentNode as ElementNode).tag.toLowerCase()) &&
+    node.verbatim === true &&
+    node.preserveWhitespace !== true
+  );
+}
+
+function trimRawTextBoundaryWhitespace(value: string): string {
+  return value.replace(/[ \t]+$/, '');
 }
 
 function printProgram(path: AstPath<Program>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {
@@ -957,6 +979,9 @@ function stringifyNode(node: Node): string {
       const comment = node as CommentStatement;
       if (comment.block || comment.multiline) {
         return `{{!-- ${comment.value} --}}`;
+      }
+      if (comment.value.startsWith('<')) {
+        return `{{!${comment.value}}}`;
       }
       return `{{! ${comment.value}}}`;
     }

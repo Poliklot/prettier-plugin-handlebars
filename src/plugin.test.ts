@@ -93,6 +93,29 @@ describe('attribute quotes and trim markers', () => {
       ></div>
     `));
   });
+
+  it('preserves express-hbs layout directives in line comments', async () => {
+    const input = '{{!< ../layout/default}}\n{{value}}';
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{!< ../layout/default}}
+      {{ value }}
+    `));
+  });
+
+  it('keeps quoted helper params inside quoted attribute values', async () => {
+    const input =
+      '<a href="../docs/ref/{{#is data.category "Plugins"}}plugins{{/is}}{{#is data.category "Polyfills"}}polyfills{{/is}}{{#is data.category "Other"}}other{{/is}}-en.html">{{data.category}}</a>';
+    const output = await format(input, { printWidth: 120 });
+
+    expect(output).toBe(
+      stripIndentWithNL(
+        `<a href='../docs/ref/{{#is data.category "Plugins"}}plugins{{/is}}{{#is data.category "Polyfills"}}polyfills{{/is}}{{#is data.category "Other"}}other{{/is}}-en.html'>{{ data.category }}</a>`,
+      ),
+    );
+    expect(await format(output, { printWidth: 120 })).toBe(output);
+  });
 });
 
 describe('partials', () => {
@@ -1128,6 +1151,37 @@ describe('raw text elements', () => {
 
     expect(firstPass).toBe(secondPass);
     expect(firstPass).not.toMatch(/\n\s*\n\s*\n/);
+  });
+
+  it('does not keep boundary spaces as blank lines in script blocks', async () => {
+    const input =
+      '<a>code <script> window["wb-charts"] = { plugins: ["site!deps/jquery.flot.navigate.js"] }; </script> code</a>';
+    const firstPass = await format(input, { printWidth: 30 });
+    const secondPass = await format(firstPass, { printWidth: 30 });
+
+    expect(firstPass).toBe(secondPass);
+    expect(firstPass).toBe(stripIndentWithNL(`
+      <a>
+        code
+        <script>
+          window["wb-charts"] = { plugins: ["site!deps/jquery.flot.navigate.js"] };
+        </script>
+        code
+      </a>
+    `));
+  });
+
+  it('does not treat apostrophes inside pre text as unclosed raw text quotes', async () => {
+    const input = "<section><pre><code>I'm here</code></pre><p>After</p></section>";
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <section>
+        <pre><code>I'm here</code></pre>
+        <p>After</p>
+      </section>
+    `));
+    expect(await format(output)).toBe(output);
   });
 });
 

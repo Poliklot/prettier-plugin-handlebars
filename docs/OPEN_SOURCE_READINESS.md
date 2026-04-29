@@ -1,11 +1,12 @@
 # Open Source Readiness
 
-This project is still in the "prove it on ugly templates" phase.
+This project stays in the "prove it on ugly templates" phase between releases.
 
-Before publishing it as a serious open-source Prettier plugin, we should hold it to a stricter bar than "formats the happy path":
+For every serious formatter release, we should hold it to a stricter bar than "formats the happy path":
 
 - `npm run build` must stay green.
 - `npm test` must stay green in non-watch mode.
+- `npm run corpus:oss` should stay green before meaningful formatter releases.
 - formatting must be idempotent: `format(format(input)) === format(input)`.
 - malformed input must not crash the parser or synthesize surprising markup.
 - unsupported Handlebars syntax must be an explicit policy decision, not an accidental failure mode.
@@ -20,9 +21,9 @@ Before publishing it as a serious open-source Prettier plugin, we should hold it
 
 | Priority | Status | Case | Why it matters |
 | --- | --- | --- | --- |
-| release-blocker | Partial | Mustache spacing inside attributes | Already regresses in current integration tests. |
+| release-blocker | Covered | Mustache spacing inside attributes | Covered by regression tests and real project sweeps. |
 | release-blocker | Partial | Inline-vs-multiline element decisions | A formatter that flips layout unexpectedly will feel unsafe in large repos. |
-| release-blocker | Partial | Block-scoped attributes with conditional branches | Real templates often gate multiple attrs behind `if` / `ifEquals`. |
+| release-blocker | Covered | Block-scoped attributes with conditional branches | Real templates often gate multiple attrs behind `if` / `ifEquals`. |
 | release-blocker | Covered | Handlebars whitespace control `~` | Very common in production HBS and whitespace-sensitive templates. |
 | release-blocker | Covered | Raw blocks `{{{{raw}}}} ... {{{{/raw}}}}` | Must not be misparsed as regular blocks. |
 | release-blocker | Covered | Block partials `{{#> layout}} ... {{/layout}}` | Common in larger Handlebars ecosystems. |
@@ -48,7 +49,7 @@ Before publishing it as a serious open-source Prettier plugin, we should hold it
 | high | Covered | Path variants | `../item`, `./name`, `this`, `@index`, `@root.user.name` |
 | medium | Covered | Path literals / bracket lookups | `user.[first-name]` |
 | medium | Covered | Triple-stash in mixed HTML contexts | `{{{ html }}}` |
-| medium | Missing | `else if` style constructs | `{{else if cond}}` |
+| medium | Covered | `else if` style constructs | `{{else if cond}}` |
 | medium | Partial | Decorators and decorator blocks | Inline partial definitions are covered; other decorators are preserved conservatively. |
 
 ## HTML Interop
@@ -84,18 +85,58 @@ Before publishing it as a serious open-source Prettier plugin, we should hold it
 
 | Priority | Status | Case | Why it matters |
 | --- | --- | --- | --- |
-| release-blocker | Partial | Idempotence on heavy fixtures | Formatter must settle after one pass. |
-| high | Missing | Round-trip stability on large fixture corpus | Needed before trying real repos. |
+| release-blocker | Covered | Idempotence on heavy fixtures | Formatter must settle after one pass. |
+| high | Covered | Round-trip stability on large fixture corpus | Covered by internal projects and public OSS sweeps. |
 | high | Covered | Cross-platform newline normalization | Prevent noisy diffs across OSes. |
 | high | Covered | Unicode and non-Latin text fixtures | Open-source usage will include Cyrillic, CJK, emoji, entities. |
 | high | Missing | Parser fuzzing / crash-resistance corpus | Safety net for malformed templates. |
-| medium | Missing | Fixture corpus from real public templates | Best way to avoid overfitting to handcrafted tests. |
+| medium | Covered | Fixture corpus from real public templates | Best way to avoid overfitting to handcrafted tests. |
+
+## Public OSS Corpus
+
+Run the public corpus sweep before meaningful formatter releases:
+
+```bash
+npm run build
+npm run corpus:oss
+```
+
+By default, the script clones shallow copies into `OSS_CORPUS_ROOT` or
+`<system-temp>/hbs-oss-corpus` and checks:
+
+- `TryGhost/Ghost` classic frontend, server, and fixture templates
+- `TryGhost/Casper`
+- `TryGhost/Source`
+- `TryGhost/London`
+- `TryGhost/Editorial`
+- `TryGhost/Massively`
+- `TryGhost/express-hbs`
+- `pillarjs/hbs`
+- `wet-boew/wet-boew`
+- `ActiveCampaign/mailmason`
+- `electron/electronjs.org-old`
+- `godofredoninja/simply`
+- `godofredoninja/Mapache`
+- `kathyqian/crisp`
+
+It treats classic Handlebars roots as the blocking release corpus. Ghost admin
+templates are run separately as a Glimmer / Ember stress pass, because that
+dialect is useful for crash-safety but is not the plugin's compatibility target.
+
+The `pillarjs/hbs` fixture `test/4.x/views/bad_layout.hbs` is intentionally
+invalid (`{{title}` / `{{{body`) and is ignored only for the idempotence gate.
+
+The corpus sweep is a parser/printer safety gate. For release confidence, also
+copy representative projects to a temp directory, run `npm run format:hbs-tree`
+against the copy, then run the project's own build or test command. That second
+step catches semantic contracts that a pure formatter pass cannot see, such as
+engine-specific layout directives or exact rendered-output tests.
 
 ## Next Moves
 
 1. Keep the GitHub-issue-inspired conformance cases green as formatter behavior evolves.
-2. Start collecting anonymized real-world `.hbs` fixtures and add them as idempotence tests.
-3. Decide the remaining policy for `{{else if ...}}`, non-inline decorators, and embedded JS/CSS formatting.
-4. Expand malformed block-partial recovery coverage before calling the parser stable.
+2. Keep expanding anonymized real-world `.hbs` fixtures when a project exposes a new edge case.
+3. Decide the remaining policy for non-inline decorators, embedded JS/CSS formatting, and self-closing custom elements.
+4. Add fuzzing and more malformed block-partial recovery coverage before calling the parser stable.
 
 The living backlog of concrete edge-case inputs sits in `test/conformance-cases.ts`.

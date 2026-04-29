@@ -776,9 +776,9 @@ function parseAttribute(text: string, position: number): { attribute: ElementAtt
   if (text[pos] === '"' || text[pos] === "'") {
     const quote = text[pos];
     pos += 1;
-    const end = text.indexOf(quote, pos);
-    rawValue = text.slice(pos, end >= 0 ? end : undefined);
-    pos = end >= 0 ? end + 1 : text.length;
+    const quoted = readQuotedAttributeValue(text, pos, quote);
+    rawValue = quoted.value;
+    pos = quoted.position;
   } else {
     const start = pos;
     while (pos < text.length && text[pos] !== '>' && text[pos] !== '/') {
@@ -866,21 +866,7 @@ function parseDynamicAttribute(
   if (text[pos] === '"' || text[pos] === "'") {
     const quote = text[pos];
     pos += 1;
-
-    while (pos < text.length) {
-      if (text.startsWith('{{', pos)) {
-        const token = parseMustacheToken(text, pos);
-        pos = token.end;
-        continue;
-      }
-
-      if (text[pos] === quote) {
-        pos += 1;
-        break;
-      }
-
-      pos += 1;
-    }
+    pos = readQuotedAttributeValue(text, pos, quote).position;
   } else {
     while (pos < text.length && !whitespace.test(text[pos]) && text[pos] !== '>' && text[pos] !== '/') {
       if (text.startsWith('{{', pos)) {
@@ -1047,6 +1033,30 @@ function parseAttributeValueParts(
   }
 
   return parts;
+}
+
+function readQuotedAttributeValue(
+  text: string,
+  position: number,
+  quote: string,
+): { value: string; position: number } {
+  let pos = position;
+
+  while (pos < text.length) {
+    if (text.startsWith('{{', pos)) {
+      const token = parseMustacheToken(text, pos);
+      pos = token.end > pos ? token.end : pos + 2;
+      continue;
+    }
+
+    if (text[pos] === quote) {
+      return { value: text.slice(position, pos), position: pos + 1 };
+    }
+
+    pos += 1;
+  }
+
+  return { value: text.slice(position), position: text.length };
 }
 
 function skipWhitespace(text: string, advance: () => void, getPos: () => number) {
@@ -1266,6 +1276,12 @@ function consumeRawBlock(text: string, position: number): number | null {
 }
 
 function findRawTextClose(text: string, position: number, tag: string): number {
+  const normalizedTag = tag.toLowerCase();
+
+  if (normalizedTag === 'pre' || normalizedTag === 'textarea') {
+    return text.toLowerCase().indexOf(`</${normalizedTag}`, position);
+  }
+
   let quote: '"' | "'" | '`' | null = null;
   let escaped = false;
 

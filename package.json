@@ -1,6 +1,6 @@
 {
   "name": "@poliklot/prettier-plugin-handlebars",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Prettier plugin for classic Handlebars (.hbs)",
   "license": "MIT",
   "type": "commonjs",
@@ -44,6 +44,8 @@
     "test:watch": "vitest",
     "check": "npm run build && npm test",
     "corpus:check": "node scripts/run-corpus-check.mjs",
+    "corpus:oss": "node scripts/run-oss-corpus-check.mjs",
+    "format:hbs-tree": "node scripts/format-hbs-tree.mjs",
     "smoke:install": "node scripts/install-smoke.mjs",
     "pack:check": "node scripts/pack-check.mjs",
     "prepublishOnly": "npm run check"

@@ -6,6 +6,7 @@
 - open-source license is chosen: `MIT`
 - package exports and CommonJS entry are defined in `package.json`
 - build and test scripts are green
+- public OSS corpus sweep is available through `npm run corpus:oss`
 - `prepublishOnly` runs the safety checks before publish
 - `npm pack --dry-run` is available through `npm run pack:check`
 - CI runs build, tests, and package inspection
@@ -18,7 +19,9 @@ For a regular publish:
 
 1. run `npm run check`
 2. run `npm run pack:check`
-3. publish the next `0.x`
+3. run `npm run corpus:oss`
+4. format temp copies of representative real projects with `npm run format:hbs-tree -- <copy>` and run their own build / test commands
+5. publish the next `0.x`
 
 Example:
 
@@ -31,4 +34,4 @@ npm publish --access public
 - automated npm release workflow
 - changelog automation
 - issue templates for formatting regressions
-- public fixture corpus from open-source templates
+- scheduled public corpus smoke checks
