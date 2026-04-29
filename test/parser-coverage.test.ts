@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parse } from '../src/parser';
+import { locEnd, locStart, parse } from '../src/parser';
 import type {
   BlockStatement,
   CommentStatement,
@@ -26,6 +26,40 @@ function firstElement(source: string): ElementNode {
 }
 
 describe('simple parser coverage', () => {
+  it('tracks non-enumerable source ranges for Prettier location hooks', () => {
+    const program = parseProgram('<div>Hello, {{name}}!</div>');
+    const element = program.body[0] as ElementNode;
+    const text = element.children[0] as TextNode;
+    const mustache = element.children[1] as MustacheStatement;
+
+    expect(locStart(program)).toBe(0);
+    expect(locEnd(program)).toBe(27);
+    expect(locStart(element)).toBe(0);
+    expect(locEnd(element)).toBe(27);
+    expect(locStart(text)).toBe(5);
+    expect(locEnd(text)).toBe(12);
+    expect(locStart(mustache)).toBe(12);
+    expect(locEnd(mustache)).toBe(20);
+    expect(Object.keys(element)).not.toContain('range');
+  });
+
+  it('tracks source ranges inside attribute values', () => {
+    const element = firstElement('<div title="Hi {{name}}"></div>');
+    const attr = element.attributes[0];
+    expect(attr.type).toBe('Attribute');
+    if (attr.type !== 'Attribute' || !attr.value) {
+      throw new Error('Expected title attribute value');
+    }
+
+    const mustache = attr.value.parts[1] as MustacheStatement;
+
+    expect(locStart(attr.value)).toBe(12);
+    expect(locEnd(attr.value)).toBe(23);
+    expect(locStart(mustache)).toBe(15);
+    expect(locEnd(mustache)).toBe(23);
+    expect(Object.keys(attr.value)).not.toContain('range');
+  });
+
   it('parses short handlebars comments at the top level', () => {
     const comment = firstNode<CommentStatement>('{{! note}}');
 

@@ -45,10 +45,40 @@ const whitespaceSensitiveRawTextElements = new Set(['textarea', 'pre']);
 export function parse(text: string): Program {
   const normalizedText = normalizeInput(text);
   const { nodes } = parseChildren(normalizedText, 0, null, null);
-  return { type: 'Program', body: nodes };
+  return withRange({ type: 'Program', body: nodes }, 0, normalizedText.length);
 }
 
-function parseChildren(text: string, position: number, endTag: string | null, endBlock: string | null): ParseResult {
+export function locStart(node: unknown): number {
+  const range = (node as { range?: [number, number] } | null | undefined)?.range;
+  return Array.isArray(range) ? range[0] : 0;
+}
+
+export function locEnd(node: unknown): number {
+  const range = (node as { range?: [number, number] } | null | undefined)?.range;
+  return Array.isArray(range) ? range[1] : 0;
+}
+
+function withRange<T extends object>(node: T, start: number, end: number): T {
+  Object.defineProperty(node, 'range', {
+    value: [start, end] satisfies [number, number],
+    enumerable: false,
+    configurable: true,
+  });
+
+  return node;
+}
+
+function withOptionalRange<T extends object>(node: T, start?: number, end?: number): T {
+  return typeof start === 'number' && typeof end === 'number' ? withRange(node, start, end) : node;
+}
+
+function parseChildren(
+  text: string,
+  position: number,
+  endTag: string | null,
+  endBlock: string | null,
+  rangeOffset = 0,
+): ParseResult {
   const nodes: Node[] = [];
   let pos = position;
 
@@ -58,12 +88,18 @@ function parseChildren(text: string, position: number, endTag: string | null, en
     const rawContent = text.slice(pos, contentEnd);
 
     if (rawContent.length > 0) {
-      nodes.push({
-        type: 'TextNode',
-        value: rawContent,
-        verbatim: true,
-        preserveWhitespace: whitespaceSensitiveRawTextElements.has(endTag.toLowerCase()),
-      } as TextNode);
+      nodes.push(
+        withRange(
+          {
+            type: 'TextNode',
+            value: rawContent,
+            verbatim: true,
+            preserveWhitespace: whitespaceSensitiveRawTextElements.has(endTag.toLowerCase()),
+          } as TextNode,
+          rangeOffset + pos,
+          rangeOffset + contentEnd,
+        ),
+      );
     }
 
     const closeIdx = closeStart >= 0 ? text.indexOf('>', closeStart) : -1;
@@ -144,7 +180,7 @@ function parseChildren(text: string, position: number, endTag: string | null, en
           continue;
         }
 
-        const { node, next } = parseBlock(text, token);
+        const { node, next } = parseBlock(text, token, rangeOffset);
         nodes.push(node);
         pos = next;
         continue;
@@ -152,24 +188,32 @@ function parseChildren(text: string, position: number, endTag: string | null, en
 
       if (token.kind === 'blockEnd') {
         // Unmatched end, treat as text to avoid crash
-        nodes.push({ type: 'TextNode', value: text.slice(pos, token.end) } as TextNode);
+        nodes.push(
+          withRange(
+            { type: 'TextNode', value: text.slice(pos, token.end) } as TextNode,
+            rangeOffset + pos,
+            rangeOffset + token.end,
+          ),
+        );
         pos = token.end;
         continue;
       }
 
       if (token.kind === 'partial') {
-        nodes.push(createPartial(token.content, token.trimOpen, token.trimClose));
+        nodes.push(createPartial(token.content, token.trimOpen, token.trimClose, rangeOffset + pos, rangeOffset + token.end));
         pos = token.end;
         continue;
       }
 
       if (token.kind === 'comment') {
-        nodes.push(createComment(token.rawContent));
+        nodes.push(createComment(token.rawContent, rangeOffset + pos, rangeOffset + token.end));
         pos = token.end;
         continue;
       }
 
-      nodes.push(createMustache(token.content, token.triple, token.trimOpen, token.trimClose));
+      nodes.push(
+        createMustache(token.content, token.triple, token.trimOpen, token.trimClose, rangeOffset + pos, rangeOffset + token.end),
+      );
       pos = token.end;
       continue;
     }
@@ -178,14 +222,26 @@ function parseChildren(text: string, position: number, endTag: string | null, en
       if (text.startsWith('<!', pos) && !text.startsWith('<!--', pos)) {
         const closeIdx = text.indexOf('>', pos + 2);
         const end = closeIdx >= 0 ? closeIdx + 1 : text.length;
-        nodes.push({ type: 'TextNode', value: text.slice(pos, end), verbatim: true } as TextNode);
+        nodes.push(
+          withRange(
+            { type: 'TextNode', value: text.slice(pos, end), verbatim: true } as TextNode,
+            rangeOffset + pos,
+            rangeOffset + end,
+          ),
+        );
         pos = end;
         continue;
       }
 
       if (!isTagStart(text, pos)) {
         const nextMarkup = findNextMarkup(text, pos + 1);
-        nodes.push({ type: 'TextNode', value: text.slice(pos, nextMarkup) } as TextNode);
+        nodes.push(
+          withRange(
+            { type: 'TextNode', value: text.slice(pos, nextMarkup) } as TextNode,
+            rangeOffset + pos,
+            rangeOffset + nextMarkup,
+          ),
+        );
         pos = nextMarkup;
         continue;
       }
@@ -194,7 +250,13 @@ function parseChildren(text: string, position: number, endTag: string | null, en
         const closeIdx = text.indexOf('-->', pos + 4);
         const end = closeIdx >= 0 ? closeIdx + 3 : text.length;
 
-        nodes.push({ type: 'TextNode', value: text.slice(pos, end), verbatim: true } as TextNode);
+        nodes.push(
+          withRange(
+            { type: 'TextNode', value: text.slice(pos, end), verbatim: true } as TextNode,
+            rangeOffset + pos,
+            rangeOffset + end,
+          ),
+        );
         pos = end;
         continue;
       }
@@ -207,19 +269,31 @@ function parseChildren(text: string, position: number, endTag: string | null, en
           return { nodes, position: pos, endReason: 'tagClose' };
         }
 
-        nodes.push({ type: 'TextNode', value: text.slice(pos, tagResult.end), verbatim: true } as TextNode);
+        nodes.push(
+          withRange(
+            { type: 'TextNode', value: text.slice(pos, tagResult.end), verbatim: true } as TextNode,
+            rangeOffset + pos,
+            rangeOffset + tagResult.end,
+          ),
+        );
         pos = tagResult.end;
         continue;
       }
 
       if (tagResult.kind === 'selfClosing') {
-        nodes.push({
-          type: 'ElementNode',
-          tag: tagResult.tag,
-          attributes: tagResult.attributes,
-          children: [],
-          selfClosing: true,
-        } as ElementNode);
+        nodes.push(
+          withRange(
+            {
+              type: 'ElementNode',
+              tag: tagResult.tag,
+              attributes: tagResult.attributes,
+              children: [],
+              selfClosing: true,
+            } as ElementNode,
+            rangeOffset + pos,
+            rangeOffset + tagResult.end,
+          ),
+        );
         pos = tagResult.end;
         continue;
       }
@@ -232,14 +306,20 @@ function parseChildren(text: string, position: number, endTag: string | null, en
         continue;
       }
 
-      const { nodes: children, position: newPos } = parseChildren(text, tagResult.end, tagResult.tag, null);
-      nodes.push({
-        type: 'ElementNode',
-        tag: tagResult.tag,
-        attributes: tagResult.attributes,
-        children,
-        selfClosing: false,
-      } as ElementNode);
+      const { nodes: children, position: newPos } = parseChildren(text, tagResult.end, tagResult.tag, null, rangeOffset);
+      nodes.push(
+        withRange(
+          {
+            type: 'ElementNode',
+            tag: tagResult.tag,
+            attributes: tagResult.attributes,
+            children,
+            selfClosing: false,
+          } as ElementNode,
+          rangeOffset + pos,
+          rangeOffset + newPos,
+        ),
+      );
       pos = newPos;
       continue;
     }
@@ -264,12 +344,12 @@ function parseChildren(text: string, position: number, endTag: string | null, en
         node.trailingWhitespace = trailingWhitespace;
       }
 
-      nodes.push(node);
+      nodes.push(withRange(node, rangeOffset + pos, rangeOffset + nextMarkup));
     } else {
       const newlineCount = (rawValue.match(/\n/g) || []).length;
       const blankLines = Math.max(newlineCount - 1, 0);
       if (blankLines > 0) {
-        nodes.push({ type: 'TextNode', value: '', blankLines } as TextNode);
+        nodes.push(withRange({ type: 'TextNode', value: '', blankLines } as TextNode, rangeOffset + pos, rangeOffset + nextMarkup));
       }
     }
     pos = nextMarkup;
@@ -310,7 +390,7 @@ function hasMatchingBlockEnd(text: string, token: MustacheToken, start: number):
   return false;
 }
 
-function parseBlock(text: string, token: MustacheToken): { node: BlockStatement; next: number } {
+function parseBlock(text: string, token: MustacheToken, rangeOffset = 0): { node: BlockStatement; next: number } {
   const openInfo = parseExpression(getBlockExpression(token));
   const blockPrefix = getBlockPrefix(token);
   const { nodes: program, position: afterProgram, endReason, endToken } = parseChildren(
@@ -318,11 +398,17 @@ function parseBlock(text: string, token: MustacheToken): { node: BlockStatement;
     token.end,
     null,
     openInfo.path,
+    rangeOffset,
   );
-  const buildProgram = (nodes: Node[]): Program => ({ type: 'Program', body: trimEdgeWhitespace(nodes) });
-  const programBody = buildProgram(program);
+  const buildProgram = (nodes: Node[], start: number, end: number): Program =>
+    withRange({ type: 'Program', body: trimEdgeWhitespace(nodes) }, rangeOffset + start, rangeOffset + end);
+  const programBody = buildProgram(program, token.end, afterProgram);
 
-  let inverseBody: Program = { type: 'Program', body: [] };
+  let inverseBody: Program = withRange(
+    { type: 'Program', body: [] },
+    rangeOffset + afterProgram,
+    rangeOffset + afterProgram,
+  );
   const inverseChain: ElseBranch[] = [];
   let finalPos = afterProgram;
   let closeToken = endReason === 'blockEnd' ? endToken : undefined;
@@ -339,15 +425,21 @@ function parseBlock(text: string, token: MustacheToken): { node: BlockStatement;
         position: afterBranch,
         endReason: branchEndReason,
         endToken: branchEndToken,
-      } = parseChildren(text, currentPosition, null, openInfo.path);
+      } = parseChildren(text, currentPosition, null, openInfo.path, rangeOffset);
 
-      inverseChain.push({
-        type: 'ElseBranch',
-        program: buildProgram(branchNodes),
-        trimOpen: currentElseToken.trimOpen,
-        trimClose: currentElseToken.trimClose,
-        ...branchExpression,
-      });
+      inverseChain.push(
+        withRange(
+          {
+            type: 'ElseBranch',
+            program: buildProgram(branchNodes, currentElseToken.end, afterBranch),
+            trimOpen: currentElseToken.trimOpen,
+            trimClose: currentElseToken.trimClose,
+            ...branchExpression,
+          },
+          rangeOffset + currentElseToken.start,
+          rangeOffset + afterBranch,
+        ),
+      );
 
       finalPos = afterBranch;
       closeToken = branchEndReason === 'blockEnd' ? branchEndToken : undefined;
@@ -367,8 +459,8 @@ function parseBlock(text: string, token: MustacheToken): { node: BlockStatement;
         position: afterInverse,
         endReason: inverseEndReason,
         endToken: inverseEndToken,
-      } = parseChildren(text, currentPosition, null, openInfo.path);
-      inverseBody = buildProgram(inverseNodes);
+      } = parseChildren(text, currentPosition, null, openInfo.path, rangeOffset);
+      inverseBody = buildProgram(inverseNodes, currentElseToken.end, afterInverse);
       finalPos = afterInverse;
       closeToken = inverseEndReason === 'blockEnd' ? inverseEndToken : undefined;
     }
@@ -377,19 +469,23 @@ function parseBlock(text: string, token: MustacheToken): { node: BlockStatement;
   // Drop the mustache-specific `type` field so we can build a proper BlockStatement
   const { type: _ignored, ...expression } = openInfo;
 
-  const node: BlockStatement = {
-    type: 'BlockStatement',
-    program: programBody,
-    ...(inverseChain.length > 0 ? { inverseChain } : {}),
-    inverse: inverseBody,
-    rawOpen: token.content,
-    blockPrefix,
-    trimOpen: token.trimOpen,
-    trimClose: token.trimClose,
-    closeTrimOpen: closeToken?.trimOpen,
-    closeTrimClose: closeToken?.trimClose,
-    ...expression,
-  };
+  const node: BlockStatement = withRange(
+    {
+      type: 'BlockStatement',
+      program: programBody,
+      ...(inverseChain.length > 0 ? { inverseChain } : {}),
+      inverse: inverseBody,
+      rawOpen: token.content,
+      blockPrefix,
+      trimOpen: token.trimOpen,
+      trimClose: token.trimClose,
+      closeTrimOpen: closeToken?.trimOpen,
+      closeTrimClose: closeToken?.trimClose,
+      ...expression,
+    },
+    rangeOffset + token.start,
+    rangeOffset + finalPos,
+  );
 
   return { node, next: finalPos };
 }
@@ -529,7 +625,7 @@ function consumeNextNode(text: string, position: number): number {
 }
 
 function createUnmatchedNode(text: string, start: number, end: number): UnmatchedNode {
-  return { type: 'UnmatchedNode', raw: text.slice(start, end) };
+  return withRange({ type: 'UnmatchedNode', raw: text.slice(start, end) }, start, end);
 }
 
 type MustacheTokenKind = 'blockStart' | 'blockEnd' | 'partial' | 'comment' | 'mustache' | 'else';
@@ -538,6 +634,7 @@ interface MustacheToken {
   kind: MustacheTokenKind;
   content: string;
   rawContent: string;
+  start: number;
   end: number;
   triple: boolean;
   name?: string;
@@ -564,6 +661,7 @@ function parseMustacheToken(text: string, position: number): MustacheToken {
   const baseToken = {
     rawContent,
     rawInner,
+    start: position,
     end,
     triple,
     trimOpen,
@@ -649,7 +747,7 @@ function parseTag(text: string, position: number):
       if (token.kind === 'comment') {
         attributes.push({
           type: 'AttributeBlock',
-          block: createComment(token.rawContent),
+          block: createComment(token.rawContent, pos, token.end),
         });
         pos = token.end;
         continue;
@@ -659,7 +757,7 @@ function parseTag(text: string, position: number):
       if (token.kind === 'partial') {
         attributes.push({
           type: 'AttributeBlock',
-          block: createPartial(token.content, token.trimOpen, token.trimClose),
+          block: createPartial(token.content, token.trimOpen, token.trimClose, pos, token.end),
         });
         pos = token.end;
         continue;
@@ -669,7 +767,7 @@ function parseTag(text: string, position: number):
       if (token.kind === 'mustache') {
         attributes.push({
           type: 'AttributeBlock',
-          block: createMustache(token.content, token.triple, token.trimOpen, token.trimClose),
+          block: createMustache(token.content, token.triple, token.trimOpen, token.trimClose, pos, token.end),
         });
         pos = token.end;
         continue;
@@ -681,7 +779,7 @@ function parseTag(text: string, position: number):
           // нет закрытия — считаем unmatched-куском
           attributes.push({
             type: 'AttributeBlock',
-            block: createMustache(token.content, token.triple, token.trimOpen, token.trimClose),
+            block: createMustache(token.content, token.triple, token.trimOpen, token.trimClose, pos, token.end),
           });
           pos = token.end;
           continue;
@@ -699,7 +797,7 @@ function parseTag(text: string, position: number):
       // else / blockEnd в голове тега — странный случай, но не ломаемся
       attributes.push({
         type: 'AttributeBlock',
-        block: createMustache(token.content, token.triple, token.trimOpen, token.trimClose),
+        block: createMustache(token.content, token.triple, token.trimOpen, token.trimClose, pos, token.end),
       });
       pos = token.end;
       continue;
@@ -773,14 +871,17 @@ function parseAttribute(text: string, position: number): { attribute: ElementAtt
   skipWhitespace(text, () => pos++, () => pos);
 
   let rawValue = '';
+  let valueStart = pos;
   if (text[pos] === '"' || text[pos] === "'") {
     const quote = text[pos];
     pos += 1;
+    valueStart = pos;
     const quoted = readQuotedAttributeValue(text, pos, quote);
     rawValue = quoted.value;
     pos = quoted.position;
   } else {
     const start = pos;
+    valueStart = start;
     while (pos < text.length && text[pos] !== '>' && text[pos] !== '/') {
       if (text.startsWith('{{', pos)) {
         const token = parseMustacheToken(text, pos);
@@ -801,7 +902,7 @@ function parseAttribute(text: string, position: number): { attribute: ElementAtt
     return { attribute: createRawAttribute(text.slice(attrStart, pos)), position: pos };
   }
 
-  return { attribute: createAttribute(name, rawValue), position: pos };
+  return { attribute: createAttribute(name, rawValue, valueStart), position: pos };
 }
 
 function shouldPreserveRawAttribute(name: string, rawValue: string): boolean {
@@ -885,7 +986,7 @@ function parseDynamicAttribute(
   };
 }
 
-function createAttribute(name: string, rawValue: string | null): ElementAttribute {
+function createAttribute(name: string, rawValue: string | null, valueStart?: number): ElementAttribute {
   if (rawValue == null) {
     return {
       type: 'Attribute',
@@ -894,15 +995,19 @@ function createAttribute(name: string, rawValue: string | null): ElementAttribut
     };
   }
 
-  const parts = parseAttributeValueParts(rawValue);
+  const parts = parseAttributeValueParts(rawValue, valueStart ?? 0);
 
   return {
     type: 'Attribute',
     name,
-    value: {
-      type: 'AttributeValue',
-      parts,
-    },
+    value: withOptionalRange(
+      {
+        type: 'AttributeValue' as const,
+        parts,
+      },
+      valueStart,
+      typeof valueStart === 'number' ? valueStart + rawValue.length : undefined,
+    ),
   };
 }
 
@@ -971,6 +1076,7 @@ function stringifyMustacheForAttribute(node: MustacheStatement): string {
 
 function parseAttributeValueParts(
   value: string,
+  rangeOffset = 0,
 ): (TextNode | MustacheStatement | BlockStatement | PartialStatement | CommentStatement)[] {
   const parts: (TextNode | MustacheStatement | BlockStatement | PartialStatement | CommentStatement)[] = [];
   let pos = 0;
@@ -981,21 +1087,23 @@ function parseAttributeValueParts(
 
       // комментарий
       if (token.kind === 'comment') {
-        parts.push(createComment(token.rawContent));
+        parts.push(createComment(token.rawContent, rangeOffset + pos, rangeOffset + token.end));
         pos = token.end;
         continue;
       }
 
       // partial
       if (token.kind === 'partial') {
-        parts.push(createPartial(token.content, token.trimOpen, token.trimClose));
+        parts.push(createPartial(token.content, token.trimOpen, token.trimClose, rangeOffset + pos, rangeOffset + token.end));
         pos = token.end;
         continue;
       }
 
       // обычный mustache
       if (token.kind === 'mustache') {
-        parts.push(createMustache(token.content, token.triple, token.trimOpen, token.trimClose));
+        parts.push(
+          createMustache(token.content, token.triple, token.trimOpen, token.trimClose, rangeOffset + pos, rangeOffset + token.end),
+        );
         pos = token.end;
         continue;
       }
@@ -1004,19 +1112,31 @@ function parseAttributeValueParts(
       if (token.kind === 'blockStart') {
         if (!hasMatchingBlockEnd(value, token, pos)) {
           // не нашли закрытие — считаем текстом, чтобы не упасть
-          parts.push({ type: 'TextNode', value: value.slice(pos, token.end) } as TextNode);
+          parts.push(
+            withRange(
+              { type: 'TextNode', value: value.slice(pos, token.end) } as TextNode,
+              rangeOffset + pos,
+              rangeOffset + token.end,
+            ),
+          );
           pos = token.end;
           continue;
         }
 
-        const { node, next } = parseBlock(value, token);
+        const { node, next } = parseBlock(value, token, rangeOffset);
         parts.push(node);
         pos = next;
         continue;
       }
 
       // else / blockEnd — странные, но не ломаемся
-      parts.push({ type: 'TextNode', value: value.slice(pos, token.end) } as TextNode);
+      parts.push(
+        withRange(
+          { type: 'TextNode', value: value.slice(pos, token.end) } as TextNode,
+          rangeOffset + pos,
+          rangeOffset + token.end,
+        ),
+      );
       pos = token.end;
       continue;
     }
@@ -1026,7 +1146,7 @@ function parseAttributeValueParts(
     const rawText = value.slice(pos, end);
 
     if (rawText.length > 0) {
-      parts.push({ type: 'TextNode', value: rawText } as TextNode);
+      parts.push(withRange({ type: 'TextNode', value: rawText } as TextNode, rangeOffset + pos, rangeOffset + end));
     }
 
     pos = end;
@@ -1433,7 +1553,14 @@ function extractBlockParams(content: string): { expression: string; blockParams:
   return { expression, blockParams };
 }
 
-function createMustache(content: string, triple: boolean, trimOpen = false, trimClose = false): MustacheStatement {
+function createMustache(
+  content: string,
+  triple: boolean,
+  trimOpen = false,
+  trimClose = false,
+  start?: number,
+  end?: number,
+): MustacheStatement {
   const normalized = normalizeExpression(content);
   const tokens = tokenize(normalized);
   const path = tokens.shift() || '';
@@ -1454,10 +1581,10 @@ function createMustache(content: string, triple: boolean, trimOpen = false, trim
     node.trimClose = true;
   }
 
-  return node;
+  return withOptionalRange(node, start, end);
 }
 
-function createPartial(content: string, trimOpen = false, trimClose = false): PartialStatement {
+function createPartial(content: string, trimOpen = false, trimClose = false, start?: number, end?: number): PartialStatement {
   const normalized = normalizeExpression(content);
   const tokens = tokenize(normalized);
   const path = tokens.shift() || '';
@@ -1477,10 +1604,10 @@ function createPartial(content: string, trimOpen = false, trimClose = false): Pa
     node.trimClose = true;
   }
 
-  return node;
+  return withOptionalRange(node, start, end);
 }
 
-function createComment(content: string): CommentStatement {
+function createComment(content: string, start?: number, end?: number): CommentStatement {
   const isBlockStyle = /^\s*!-{2}/.test(content);
   const withoutOpen = content.replace(/^[\t ]*!-{0,2}/, '');
   const withoutClosing = withoutOpen.replace(/-{2}\s*$/, '');
@@ -1491,13 +1618,13 @@ function createComment(content: string): CommentStatement {
 
   const isMultiline = /\n/.test(content);
 
-  return {
+  return withOptionalRange({
     type: 'CommentStatement',
     value,
     multiline: isMultiline,
     block: isBlockStyle || isMultiline,
     inline,
-  };
+  }, start, end);
 }
 
 function splitParams(tokens: string[]): { params: string[]; hash: HashPair[] } {

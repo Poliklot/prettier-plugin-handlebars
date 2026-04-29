@@ -8,12 +8,16 @@ export type Node =
   | CommentStatement
   | UnmatchedNode;
 
-export interface Program {
+export interface SourceRange {
+  range?: [number, number];
+}
+
+export interface Program extends SourceRange {
   type: 'Program';
   body: Node[];
 }
 
-export interface AttributeValue {
+export interface AttributeValue extends SourceRange {
   type: 'AttributeValue';
   parts: AttributeValuePart[];
 }
@@ -40,7 +44,7 @@ export type ElementAttribute =
       block: MustacheStatement | BlockStatement | PartialStatement | CommentStatement;
     };
 
-export interface ElementNode {
+export interface ElementNode extends SourceRange {
   type: 'ElementNode';
   tag: string;
   attributes: ElementAttribute[];
@@ -48,7 +52,7 @@ export interface ElementNode {
   selfClosing: boolean;
 }
 
-export interface TextNode {
+export interface TextNode extends SourceRange {
   type: 'TextNode';
   value: string;
   blankLines?: number;
@@ -72,17 +76,17 @@ export interface MustacheBase {
   trimClose?: boolean;
 }
 
-export interface MustacheStatement extends MustacheBase {
+export interface MustacheStatement extends MustacheBase, SourceRange {
   type: 'MustacheStatement';
   triple: boolean;
 }
 
-export interface ElseBranch extends MustacheBase {
+export interface ElseBranch extends MustacheBase, SourceRange {
   type: 'ElseBranch';
   program: Program;
 }
 
-export interface BlockStatement extends MustacheBase {
+export interface BlockStatement extends MustacheBase, SourceRange {
   type: 'BlockStatement';
   program: Program;
   inverseChain?: ElseBranch[];
@@ -93,11 +97,11 @@ export interface BlockStatement extends MustacheBase {
   closeTrimClose?: boolean;
 }
 
-export interface PartialStatement extends MustacheBase {
+export interface PartialStatement extends MustacheBase, SourceRange {
   type: 'PartialStatement';
 }
 
-export interface CommentStatement {
+export interface CommentStatement extends SourceRange {
   type: 'CommentStatement';
   value: string;
   multiline: boolean;
@@ -105,7 +109,7 @@ export interface CommentStatement {
   inline: boolean;
 }
 
-export interface UnmatchedNode {
+export interface UnmatchedNode extends SourceRange {
   type: 'UnmatchedNode';
   raw: string;
 }

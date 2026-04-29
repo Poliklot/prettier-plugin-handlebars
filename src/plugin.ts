@@ -1,4 +1,4 @@
-import { parse } from './parser';
+import { locEnd, locStart, parse } from './parser';
 import { printer } from './printer';
 
 export const languages = [
@@ -16,8 +16,8 @@ export const parsers = {
   'handlebars': {
     parse,
     astFormat: 'handlebars-ast',
-    locStart: () => 0,
-    locEnd: () => 0,
+    locStart,
+    locEnd,
   },
 };
 

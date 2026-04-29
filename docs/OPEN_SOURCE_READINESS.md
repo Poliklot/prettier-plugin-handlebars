@@ -8,6 +8,7 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 - `npm test` must stay green in non-watch mode.
 - `npm run corpus:oss` should stay green before meaningful formatter releases.
 - formatting must be idempotent: `format(format(input)) === format(input)`.
+- semantic render checks should compare Handlebars output before and after formatting for whitespace-sensitive cases.
 - malformed input must not crash the parser or synthesize surprising markup.
 - unsupported Handlebars syntax must be an explicit policy decision, not an accidental failure mode.
 
@@ -88,6 +89,7 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 | --- | --- | --- | --- |
 | release-blocker | Covered | Idempotence on heavy fixtures | Formatter must settle after one pass. |
 | high | Covered | Round-trip stability on large fixture corpus | Covered by internal projects and public OSS sweeps. |
+| high | Covered | Render-output stability on semantic fixtures | Handlebars runtime tests compare output before and after formatting. |
 | high | Covered | Cross-platform newline normalization | Prevent noisy diffs across OSes. |
 | high | Covered | Unicode and non-Latin text fixtures | Open-source usage will include Cyrillic, CJK, emoji, entities. |
 | high | Missing | Parser fuzzing / crash-resistance corpus | Safety net for malformed templates. |

@@ -318,8 +318,13 @@ function canPrintRootInlineTextTemplate(nodes: Node[]): boolean {
 }
 
 function isRootInlineTextTemplateChild(node: Node, index: number, nodes: Node[]): boolean {
-  if (node.type === 'MustacheStatement') {
+  if (node.type === 'MustacheStatement' || node.type === 'PartialStatement') {
     return true;
+  }
+
+  if (node.type === 'CommentStatement') {
+    const comment = node as CommentStatement;
+    return !comment.block && !comment.multiline;
   }
 
   if (node.type !== 'TextNode') {
