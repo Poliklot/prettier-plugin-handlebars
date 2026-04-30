@@ -23,6 +23,17 @@ const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat
 const whitespaceSensitiveRawTextTags = new Set(['pre', 'textarea']);
 const trimmableRawTextTags = new Set(['script', 'style']);
 type PrintableExpression = MustacheStatement | BlockStatement | ElseBranch | PartialStatement | DecoratorStatement;
+type CallableStatement = MustacheStatement | DecoratorStatement;
+
+interface CallablePrintConfig {
+  open: string;
+  close: string;
+  inlineContent: string;
+  multilineHead: string;
+  openPadding?: string;
+  closePadding: string;
+  multiline: boolean;
+}
 
 function docHasHardline(doc: Doc): boolean {
   if (typeof doc === 'string') {
@@ -1056,16 +1067,16 @@ function stringifyInlineChild(node: Node, options?: ParserOptions): string {
 }
 
 function shouldInsertInlineSeparator(left: Node, right: Node): boolean {
-  if (isPunctuationOnlyTextNode(left) || isPunctuationOnlyTextNode(right)) {
-    return false;
-  }
-
   if (left.type === 'TextNode' && hasInlineBoundaryWhitespace((left as TextNode).trailingWhitespace)) {
-    return true;
+    return !isPunctuationOnlyTextNode(left) || !hasLineBreak((left as TextNode).trailingWhitespace);
   }
 
   if (right.type === 'TextNode' && hasInlineBoundaryWhitespace((right as TextNode).leadingWhitespace)) {
-    return true;
+    return !isPunctuationOnlyTextNode(right) || !hasLineBreak((right as TextNode).leadingWhitespace);
+  }
+
+  if (isPunctuationOnlyTextNode(left) || isPunctuationOnlyTextNode(right)) {
+    return false;
   }
 
   return left.type !== 'TextNode' && right.type !== 'TextNode';
@@ -1257,11 +1268,11 @@ function canInlineBlock(
   parentType: Node['type'] | undefined,
 ): boolean {
   const blockPrefix = getBlockPrefix(node);
-  if (blockPrefix !== '#' && blockPrefix !== '^') {
+  if (blockPrefix !== '#' && blockPrefix !== '^' && blockPrefix !== '#*') {
     return false;
   }
 
-  if (hasBlockTrimMarkers(node) && hasOriginalLineBreak(node, options)) {
+  if (hasOriginalLineBreak(node, options)) {
     return false;
   }
 
@@ -1287,18 +1298,6 @@ function canInlineBlock(
   }
 
   return stringifyNode(node as Node).length <= getPrintWidth(options);
-}
-
-function hasBlockTrimMarkers(node: BlockStatement): boolean {
-  return Boolean(
-    node.trimOpen ||
-      node.trimClose ||
-      node.inverseTrimOpen ||
-      node.inverseTrimClose ||
-      node.closeTrimOpen ||
-      node.closeTrimClose ||
-      (node.inverseChain ?? []).some((branch) => branch.trimOpen || branch.trimClose),
-  );
 }
 
 function hasOriginalLineBreak(node: Node, options: ParserOptions): boolean {
@@ -1339,15 +1338,15 @@ function stringifyNode(node: Node): string {
       const printedPrefix = prefix === '#>' ? '#> ' : prefix;
       const expression = buildExpression(block);
       const open = `{{${getTrimOpen(block)}${printedPrefix}${expression}${getTrimClosePadding(block, expression)}${getTrimClose(block)}}}`;
-      const program = stringifyNode(block.program as Program);
+      const program = stringifyInlineChildren(block.program.body as Node[]);
       const inverseChain = (block.inverseChain ?? [])
         .map((branch) => {
           const branchExpression = buildExpression(branch);
-          return `{{${getTrimOpen(branch)}else ${branchExpression}${getTrimClosePadding(branch, branchExpression)}${getTrimClose(branch)}}}${stringifyNode(branch.program as Program)}`;
+          return `{{${getTrimOpen(branch)}else ${branchExpression}${getTrimClosePadding(branch, branchExpression)}${getTrimClose(branch)}}}${stringifyInlineChildren(branch.program.body as Node[])}`;
         })
         .join('');
       const inverse = block.inverse.body.length > 0
-        ? `{{${block.inverseTrimOpen ? '~' : ''}else${block.inverseTrimClose ? '~' : ''}}}${stringifyNode(block.inverse as Program)}`
+        ? `{{${block.inverseTrimOpen ? '~' : ''}else${block.inverseTrimClose ? '~' : ''}}}${stringifyInlineChildren(block.inverse.body as Node[])}`
         : '';
       const close = `{{${block.closeTrimOpen ? '~' : ''}/${block.path}${block.closeTrimClose ? '~' : ''}}}`;
       return `${open}${program}${inverseChain}${inverse}${close}`;
@@ -1510,84 +1509,82 @@ function stringifyDecorator(node: DecoratorStatement): string {
   return `{{${getTrimOpen(node)}*${content}${getTrimClosePadding(node, content)}${getTrimClose(node)}}}`;
 }
 
+function shouldPrintCallableMultiline(
+  node: CallableStatement,
+  content: string,
+  options: ParserOptions,
+  allowHashWrap: boolean,
+): boolean {
+  const expressionPartCount = node.hash.length + node.params.length;
+  const canWrapPlainParams = !node.params.some(shouldKeepParamInline);
+
+  return (
+    expressionPartCount > 1 &&
+    ((allowHashWrap && node.hash.length > 0) || (canWrapPlainParams && content.length > getPrintWidth(options)))
+  );
+}
+
+function buildCallableParamsDocs(node: CallableStatement): Doc[] {
+  const paramsDocs: Doc[] = [];
+  node.params.forEach((param) => paramsDocs.push(param));
+  node.hash.forEach((pair) => paramsDocs.push(formatHash(pair)));
+
+  return paramsDocs;
+}
+
+function printCallableStatement(node: CallableStatement, config: CallablePrintConfig): Doc {
+  if (config.multiline) {
+    return group(
+      concat([
+        config.open,
+        getTrimOpen(node),
+        config.multilineHead,
+        indent(concat([hardline, join(hardline, buildCallableParamsDocs(node))])),
+        hardline,
+        getTrimClose(node),
+        config.close,
+      ]),
+    );
+  }
+
+  return concat([
+    config.open,
+    getTrimOpen(node),
+    config.openPadding ?? '',
+    config.inlineContent,
+    config.closePadding,
+    getTrimClose(node),
+    config.close,
+  ]);
+}
+
 function printMustache(node: MustacheStatement, options: ParserOptions): Doc {
   const content = buildExpression(node);
   const open = node.triple ? '{{{' : '{{';
   const close = node.triple ? '}}}' : '}}';
 
-  const expressionPartCount = node.hash.length + node.params.length;
-  const canWrapPlainParams = !node.params.some(shouldKeepParamInline);
-  const shouldMultiline =
-    !node.triple &&
-    expressionPartCount > 1 &&
-    ((node.hash.length > 0 && expressionPartCount > 1) || (canWrapPlainParams && content.length > getPrintWidth(options)));
-
-  if (shouldMultiline) {
-    const paramsDocs: Doc[] = [];
-    node.params.forEach((param) => paramsDocs.push(param));
-    node.hash.forEach((pair) => paramsDocs.push(formatHash(pair)));
-
-    return group(
-      concat([
-        open,
-        getTrimOpen(node),
-        node.path,
-        indent(concat([hardline, join(hardline, paramsDocs)])),
-        hardline,
-        getTrimClose(node),
-        close,
-      ]),
-    );
-  }
-
-  return concat([
+  return printCallableStatement(node, {
     open,
-    getTrimOpen(node),
-    getMustacheOpenPadding(node, content),
-    content,
-    getMustacheClosePadding(node, content),
-    getTrimClose(node),
     close,
-  ]);
+    inlineContent: content,
+    multilineHead: node.path,
+    openPadding: getMustacheOpenPadding(node, content),
+    closePadding: getMustacheClosePadding(node, content),
+    multiline: !node.triple && shouldPrintCallableMultiline(node, content, options, true),
+  });
 }
 
 function printDecorator(node: DecoratorStatement, options: ParserOptions): Doc {
   const content = buildExpression(node);
-  const expressionPartCount = node.hash.length + node.params.length;
-  const canWrapPlainParams = !node.params.some(shouldKeepParamInline);
-  const shouldMultiline =
-    expressionPartCount > 1 &&
-    canWrapPlainParams &&
-    content.length > getPrintWidth(options);
 
-  if (shouldMultiline) {
-    const paramsDocs: Doc[] = [];
-    node.params.forEach((param) => paramsDocs.push(param));
-    node.hash.forEach((pair) => paramsDocs.push(formatHash(pair)));
-
-    return group(
-      concat([
-        '{{',
-        getTrimOpen(node),
-        '*',
-        node.path,
-        indent(concat([hardline, join(hardline, paramsDocs)])),
-        hardline,
-        getTrimClose(node),
-        '}}',
-      ]),
-    );
-  }
-
-  return concat([
-    '{{',
-    getTrimOpen(node),
-    '*',
-    content,
-    getTrimClosePadding(node, content),
-    getTrimClose(node),
-    '}}',
-  ]);
+  return printCallableStatement(node, {
+    open: '{{',
+    close: '}}',
+    inlineContent: `*${content}`,
+    multilineHead: `*${node.path}`,
+    closePadding: getTrimClosePadding(node, content),
+    multiline: shouldPrintCallableMultiline(node, content, options, false),
+  });
 }
 
 function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {
@@ -1666,15 +1663,18 @@ function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print
 
 function printBlockOpen(node: BlockStatement): Doc {
   const expression = buildExpression(node);
-  const multilineExpression = splitMultilineExpression(expression);
   const prefix = getBlockPrefix(node);
   const printedPrefix = prefix === '#>' ? '#> ' : prefix;
 
+  return printExpressionTag(['{{', getTrimOpen(node), printedPrefix], expression, node);
+}
+
+function printExpressionTag(openParts: Doc[], expression: string, node: BlockStatement | ElseBranch): Doc {
+  const multilineExpression = splitMultilineExpression(expression);
+
   if (multilineExpression) {
     return concat([
-      '{{',
-      getTrimOpen(node),
-      printedPrefix,
+      ...openParts,
       multilineExpression[0],
       indent(concat([hardline, join(hardline, multilineExpression.slice(1))])),
       hardline,
@@ -1684,9 +1684,7 @@ function printBlockOpen(node: BlockStatement): Doc {
   }
 
   return concat([
-    '{{',
-    getTrimOpen(node),
-    printedPrefix,
+    ...openParts,
     expression,
     getTrimClosePadding(node, expression),
     getTrimClose(node),
@@ -1700,30 +1698,8 @@ function printFinalElseOpen(node: BlockStatement): Doc {
 
 function printElseBranchOpen(node: ElseBranch): Doc {
   const expression = buildExpression(node);
-  const multilineExpression = splitMultilineExpression(expression);
 
-  if (multilineExpression) {
-    return concat([
-      '{{',
-      getTrimOpen(node),
-      'else ',
-      multilineExpression[0],
-      indent(concat([hardline, join(hardline, multilineExpression.slice(1))])),
-      hardline,
-      getTrimClose(node),
-      '}}',
-    ]);
-  }
-
-  return concat([
-    '{{',
-    getTrimOpen(node),
-    'else ',
-    expression,
-    getTrimClosePadding(node, expression),
-    getTrimClose(node),
-    '}}',
-  ]);
+  return printExpressionTag(['{{', getTrimOpen(node), 'else '], expression, node);
 }
 
 function printBlockClose(node: BlockStatement): Doc {

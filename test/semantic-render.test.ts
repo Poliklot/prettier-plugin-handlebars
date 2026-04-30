@@ -4,6 +4,7 @@ import prettier from 'prettier';
 import * as plugin from '../src/plugin';
 
 type Partials = Record<string, string>;
+type Helpers = Record<string, Handlebars.HelperDelegate>;
 
 function stripIndent(input: string): string {
   const withoutEdgeNewlines = input.replace(/^\n/, '').replace(/\s*$/, '');
@@ -24,22 +25,26 @@ async function format(source: string): Promise<string> {
   });
 }
 
-function render(source: string, data: unknown, partials: Partials = {}): string {
+function render(source: string, data: unknown, partials: Partials = {}, helpers: Helpers = {}): string {
   const environment = Handlebars.create();
 
   Object.entries(partials).forEach(([name, partial]) => {
     environment.registerPartial(name, partial);
   });
 
+  Object.entries(helpers).forEach(([name, helper]) => {
+    environment.registerHelper(name, helper);
+  });
+
   return environment.compile(source)(data);
 }
 
-async function expectRenderStable(source: string, data: unknown, partials: Partials = {}) {
+async function expectRenderStable(source: string, data: unknown, partials: Partials = {}, helpers: Helpers = {}) {
   const formatted = await format(source);
   const secondPass = await format(formatted);
 
   expect(secondPass).toBe(formatted);
-  expect(render(formatted, data, partials)).toBe(render(source, data, partials));
+  expect(render(formatted, data, partials, helpers)).toBe(render(source, data, partials, helpers));
 }
 
 describe('semantic render stability', () => {
@@ -61,6 +66,32 @@ describe('semantic render stability', () => {
 
     await expectRenderStable(source, { ok: true });
     await expectRenderStable(source, { ok: false });
+  });
+
+  it('preserves multiline standalone block output', async () => {
+    const source = stripIndent(`
+      {{#if ok}}
+        Hello, {{name}}!
+      {{else}}
+        Empty
+      {{/if}}
+    `);
+
+    await expectRenderStable(source, { ok: true, name: 'Igor' });
+    await expectRenderStable(source, { ok: false, name: 'Igor' });
+  });
+
+  it('preserves each block output with block params', async () => {
+    const source = stripIndent(`
+      {{#each items as |item index|}}
+        {{index}}: {{item.name}}
+      {{else}}
+        empty
+      {{/each}}
+    `);
+
+    await expectRenderStable(source, { items: [{ name: 'A' }, { name: 'B' }] });
+    await expectRenderStable(source, { items: [] });
   });
 
   it('preserves escaped mustache output', async () => {
@@ -86,6 +117,21 @@ describe('semantic render stability', () => {
     await expectRenderStable('{{> greeting name=name}}\n', { name: 'Igor' }, {
       greeting: 'Hello, {{name}}!\n',
     });
+  });
+
+  it('preserves partial output with nested params and hashes', async () => {
+    await expectRenderStable(
+      '{{> card title=(concat first second) active=true}}\n',
+      { first: 'A', second: 'B' },
+      {
+        card: '{{title}}/{{active}}',
+      },
+      {
+        concat(...args) {
+          return args.slice(0, -1).join('');
+        },
+      },
+    );
   });
 
   it('preserves whitespace-control partial output', async () => {
@@ -127,6 +173,28 @@ describe('semantic render stability', () => {
     `);
 
     await expectRenderStable(source, { name: 'Igor' });
+  });
+
+  it('preserves inline inline-partial definition output', async () => {
+    const source = '{{#*inline "greeting"}}Hello, {{name}}!{{/inline}}\n{{> greeting}}\n';
+
+    await expectRenderStable(source, { name: 'Igor' });
+  });
+
+  it('preserves helper output with quoted braces and subexpressions', async () => {
+    await expectRenderStable(
+      '{{wrap "a }} b" (concat first "-" second) suffix="!"}}\n',
+      { first: 'A', second: 'B' },
+      {},
+      {
+        concat(...args) {
+          return args.slice(0, -1).join('');
+        },
+        wrap(first, second, options) {
+          return `${first}:${second}${options.hash.suffix}`;
+        },
+      },
+    );
   });
 
   it('preserves whitespace-sensitive pre output', async () => {
