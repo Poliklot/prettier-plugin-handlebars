@@ -1426,11 +1426,84 @@ describe('raw text elements', () => {
     expect(await format(output)).toBe(output);
   });
 
-  it('preserves script tags with Handlebars instead of embedding JavaScript formatting', async () => {
-    const input = `<script>const value="{{value}}";</script>`;
+  it('formats safe JavaScript around inline Handlebars placeholders', async () => {
+    const input = `<script>const value="{{value}}";const state={count:1};if({{enabled}}){console.log(value,state.count)}</script>`;
     const output = await format(input);
 
-    expect(output).toBe(stripIndentWithNL(`<script>const value="{{value}}";</script>`));
+    expect(output).toBe(stripIndentWithNL(`
+      <script>
+        const value = "{{value}}";
+        const state = { count: 1 };
+        if ({{enabled}}) {
+          console.log(value, state.count);
+        }
+      </script>
+    `));
+  });
+
+  it('formats safe CSS around inline Handlebars placeholders', async () => {
+    const input = `<style>.banner{color:{{color}};background:#fff}.{{className}}{display:block}</style>`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <style>
+        .banner {
+          color: {{color}};
+          background: #fff;
+        }
+        .{{className}} {
+          display: block;
+        }
+      </style>
+    `));
+  });
+
+  it('preserves script tags with block Handlebars instead of adding JavaScript syntax', async () => {
+    const input = stripIndent(`
+      <script>
+        {{#if enabled}}
+        console.log("enabled")
+        {{/if}}
+      </script>
+    `);
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <script>
+        {{#if enabled}}
+        console.log("enabled")
+        {{/if}}
+      </script>
+    `));
+  });
+
+  it('preserves malformed Handlebars inside script tags', async () => {
+    const input = `<script>const value = {{value;</script>`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`<script>const value = {{value;</script>`));
+  });
+
+  it('preserves script tags when JavaScript embedding cannot parse safely', async () => {
+    const input = `<script>if (</script>`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <script>
+        if (
+      </script>
+    `));
+  });
+
+  it('preserves style tags when CSS embedding cannot parse safely', async () => {
+    const input = `<style>.banner { color: </style>`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <style>
+        .banner { color:
+      </style>
+    `));
   });
 
   it('respects embeddedLanguageFormatting off for script tags', async () => {

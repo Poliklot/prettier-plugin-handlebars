@@ -19,6 +19,7 @@ import {
 
 const { hardline, join, group, indent, line, softline, ifBreak, lineSuffix, lineSuffixBoundary } = builders;
 const { stripTrailingHardline, willBreak } = utils;
+const mapDoc = (utils as unknown as { mapDoc: (doc: Doc, cb: (doc: Doc) => Doc) => Doc }).mapDoc;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
 const whitespaceSensitiveRawTextTags = new Set(['pre', 'textarea']);
 const trimmableRawTextTags = new Set(['script', 'style']);
@@ -189,12 +190,21 @@ export const printer: Printer<Node> = {
         return '';
       }
 
-      const doc = await textToDoc(content, {
-        ...options,
-        parser,
-      });
+      const prepared = prepareEmbeddedRawText(content, parser);
+      if (!prepared) {
+        return formatVerbatimText(content);
+      }
 
-      return stripTrailingHardline(doc);
+      try {
+        const doc = await textToDoc(prepared.text, {
+          ...options,
+          parser,
+        });
+
+        return stripTrailingHardline(restoreHandlebarsPlaceholders(doc, prepared.replacements));
+      } catch {
+        return formatVerbatimText(content);
+      }
     };
   },
   print(path, options, print) {
@@ -394,6 +404,11 @@ function trimRawTextBoundaryWhitespace(value: string): string {
 
 type EmbeddedRawTextParser = 'babel' | 'css';
 
+interface PreparedEmbeddedRawText {
+  text: string;
+  replacements: Map<string, string>;
+}
+
 function getEmbeddedRawTextParser(
   element: ElementNode,
   child: TextNode,
@@ -405,25 +420,25 @@ function getEmbeddedRawTextParser(
 
   const tag = element.tag.toLowerCase();
   const content = normalizeEmbeddedRawText(child.value);
-  if (!canFormatEmbeddedRawText(content, tag)) {
-    return null;
-  }
+  let parser: EmbeddedRawTextParser | null = null;
 
   if (tag === 'style') {
     const type = getStaticAttributeValue(element, 'type');
-    return !type || type === 'text/css' ? 'css' : null;
-  }
-
-  if (tag === 'script') {
+    parser = !type || type === 'text/css' ? 'css' : null;
+  } else if (tag === 'script') {
     if (hasPlainAttribute(element, 'src')) {
       return null;
     }
 
     const type = getStaticAttributeValue(element, 'type');
-    return isJavaScriptScriptType(type) ? 'babel' : null;
+    parser = isJavaScriptScriptType(type) ? 'babel' : null;
   }
 
-  return null;
+  if (!parser || !canFormatEmbeddedRawText(content, tag, parser)) {
+    return null;
+  }
+
+  return parser;
 }
 
 function isEmbeddedLanguageFormattingEnabled(options: Options | ParserOptions): boolean {
@@ -439,14 +454,145 @@ function isSingleRawTextChild(element: ElementNode, child: TextNode): boolean {
   );
 }
 
-function canFormatEmbeddedRawText(content: string, tag: string): boolean {
+function canFormatEmbeddedRawText(content: string, tag: string, parser: EmbeddedRawTextParser): boolean {
   return (
     content.trim() !== '' &&
-    !content.includes('{{') &&
-    !content.includes('}}') &&
     !new RegExp(`</\\s*${tag}`, 'i').test(content) &&
-    !(tag === 'style' && hasMultilineBlockComment(content))
+    !(tag === 'style' && hasMultilineBlockComment(content)) &&
+    prepareEmbeddedRawText(content, parser) !== null
   );
+}
+
+function prepareEmbeddedRawText(content: string, parser: EmbeddedRawTextParser): PreparedEmbeddedRawText | null {
+  const tokens = findEmbeddedHandlebarsTokens(content);
+  if (tokens.length === 0) {
+    return { text: content, replacements: new Map() };
+  }
+
+  if (tokens.some((token) => isUnsafeEmbeddedHandlebarsToken(content, token))) {
+    return null;
+  }
+
+  const replacements = new Map<string, string>();
+  let prepared = '';
+  let lastIndex = 0;
+
+  tokens.forEach((token, index) => {
+    const placeholder = parser === 'css' ? `poliklot-hbs-placeholder-${index}` : `__POLIKLOT_HBS_PLACEHOLDER_${index}__`;
+    prepared += content.slice(lastIndex, token.start);
+    prepared += placeholder;
+    replacements.set(placeholder, content.slice(token.start, token.end));
+    lastIndex = token.end;
+  });
+
+  prepared += content.slice(lastIndex);
+
+  return { text: prepared, replacements };
+}
+
+function restoreHandlebarsPlaceholders(doc: Doc, replacements: Map<string, string>): Doc {
+  if (replacements.size === 0) {
+    return doc;
+  }
+
+  const placeholders = [...replacements.keys()].sort((left, right) => right.length - left.length);
+
+  return mapDoc(doc, (currentDoc) => {
+    if (typeof currentDoc !== 'string') {
+      return currentDoc;
+    }
+
+    return placeholders.reduce((value, placeholder) => {
+      const replacement = replacements.get(placeholder) ?? placeholder;
+      return value.split(placeholder).join(replacement);
+    }, currentDoc);
+  });
+}
+
+interface EmbeddedHandlebarsToken {
+  start: number;
+  end: number;
+}
+
+function findEmbeddedHandlebarsTokens(content: string): EmbeddedHandlebarsToken[] {
+  const tokens: EmbeddedHandlebarsToken[] = [];
+  let position = 0;
+
+  while (position < content.length) {
+    const start = content.indexOf('{{', position);
+    if (start === -1) {
+      break;
+    }
+
+    if (isEscapedEmbeddedHandlebarsOpen(content, start)) {
+      position = start + 2;
+      continue;
+    }
+
+    if (content.startsWith('{{{{', start)) {
+      const close = content.indexOf('}}}}', start + 4);
+      if (close === -1) {
+        return [{ start, end: content.length }];
+      }
+
+      tokens.push({ start, end: close + 4 });
+      position = close + 4;
+      continue;
+    }
+
+    const triple = content.startsWith('{{{', start);
+    const closeDelimiter = triple ? '}}}' : '}}';
+    const close = content.indexOf(closeDelimiter, start + (triple ? 3 : 2));
+    if (close === -1) {
+      return [{ start, end: content.length }];
+    }
+
+    tokens.push({ start, end: close + closeDelimiter.length });
+    position = close + closeDelimiter.length;
+  }
+
+  return tokens;
+}
+
+function isEscapedEmbeddedHandlebarsOpen(content: string, position: number): boolean {
+  let slashCount = 0;
+  for (let index = position - 1; index >= 0 && content[index] === '\\'; index -= 1) {
+    slashCount += 1;
+  }
+
+  return slashCount % 2 === 1;
+}
+
+function isUnsafeEmbeddedHandlebarsToken(content: string, token: EmbeddedHandlebarsToken): boolean {
+  const raw = content.slice(token.start, token.end);
+  if (raw.startsWith('{{{{')) {
+    return true;
+  }
+
+  const triple = raw.startsWith('{{{');
+  if ((triple && !raw.endsWith('}}}')) || (!triple && !raw.endsWith('}}'))) {
+    return true;
+  }
+
+  const openLength = triple ? 3 : 2;
+  const closeLength = triple ? 3 : 2;
+  const inner = raw.slice(openLength, -closeLength).trim().replace(/^~/, '').replace(/~$/, '').trim();
+
+  return (
+    inner === '' ||
+    inner === 'else' ||
+    inner.startsWith('else ') ||
+    /^[#/!>*]/.test(inner) ||
+    isStandaloneEmbeddedHandlebarsToken(content, token)
+  );
+}
+
+function isStandaloneEmbeddedHandlebarsToken(content: string, token: EmbeddedHandlebarsToken): boolean {
+  const lineStart = content.lastIndexOf('\n', token.start - 1) + 1;
+  const nextLineBreak = content.indexOf('\n', token.end);
+  const lineEnd = nextLineBreak === -1 ? content.length : nextLineBreak;
+
+  return content.slice(lineStart, token.start).trim() === '' && content.slice(token.end, lineEnd).trim() === '';
 }
 
 function hasMultilineBlockComment(content: string): boolean {
@@ -496,16 +642,24 @@ function normalizeEmbeddedRawText(content: string): string {
 function printProgram(path: AstPath<Program>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {
   const parts: Doc[] = [];
   const nodes: Node[] = [];
+  const isRootProgram = !path.getParentNode();
+
   path.each((childPath) => {
     const childNode = childPath.getValue() as Node;
     if (childNode.type === 'TextNode' && childNode.blankLines && getMaxEmptyLines(options) === 0) {
       return;
     }
 
-    const doc = print(childPath as AstPath<Node>);
+    let doc = print(childPath as AstPath<Node>);
     if (doc === null) {
       return;
     }
+
+    const standaloneIndent = isRootProgram ? getOriginalStandaloneIndent(childNode, options) : '';
+    if (standaloneIndent && !docBreaks(doc)) {
+      doc = concat([standaloneIndent, doc]);
+    }
+
     nodes.push(childNode);
     parts.push(doc);
   }, 'body');
@@ -545,6 +699,41 @@ function printProgram(path: AstPath<Program>, options: ParserOptions, print: (pa
   }
 
   return concat([join(hardline, parts), hardline]);
+}
+
+function getOriginalStandaloneIndent(node: Node, options: ParserOptions): string {
+  if (!shouldPreserveStandaloneIndent(node)) {
+    return '';
+  }
+
+  const range = (node as { range?: [number, number] }).range;
+  const originalText = (options as { originalText?: string }).originalText;
+  if (!range || !originalText) {
+    return '';
+  }
+
+  if (/[\r\n]/.test(originalText.slice(range[0], range[1]))) {
+    return '';
+  }
+
+  const lineStart = originalText.lastIndexOf('\n', range[0] - 1) + 1;
+  const before = originalText.slice(lineStart, range[0]);
+  if (!/^[ \t]+$/.test(before)) {
+    return '';
+  }
+
+  const nextLineBreak = originalText.indexOf('\n', range[1]);
+  const lineEnd = nextLineBreak === -1 ? originalText.length : nextLineBreak;
+  const after = originalText.slice(range[1], lineEnd);
+  if (!/^[ \t\r]*$/.test(after)) {
+    return '';
+  }
+
+  return before;
+}
+
+function shouldPreserveStandaloneIndent(node: Node): boolean {
+  return node.type === 'MustacheStatement' || node.type === 'PartialStatement' || node.type === 'DecoratorStatement';
 }
 
 function canPrintRootInlineTextTemplate(nodes: Node[], options: ParserOptions): boolean {

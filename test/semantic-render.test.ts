@@ -55,6 +55,12 @@ describe('semantic render stability', () => {
     });
   });
 
+  it('preserves root-level standalone mustache indentation output', async () => {
+    await expectRenderStable('Before\n  {{name}}\nAfter\n', {
+      name: 'Igor',
+    });
+  });
+
   it('preserves inline whitespace-control output', async () => {
     await expectRenderStable('A {{~name~}} B\n', {
       name: 'Igor',
@@ -116,6 +122,12 @@ describe('semantic render stability', () => {
   it('preserves partial invocation output', async () => {
     await expectRenderStable('{{> greeting name=name}}\n', { name: 'Igor' }, {
       greeting: 'Hello, {{name}}!\n',
+    });
+  });
+
+  it('preserves root-level standalone partial indentation output', async () => {
+    await expectRenderStable('Before\n  {{> item}}\nAfter\n', {}, {
+      item: 'A\nB',
     });
   });
 
@@ -199,6 +211,12 @@ describe('semantic render stability', () => {
 
   it('preserves whitespace-sensitive pre output', async () => {
     const source = '<pre>\n  Hello, {{name}}!\n</pre>\n';
+
+    await expectRenderStable(source, { name: 'Igor' });
+  });
+
+  it('preserves whitespace-sensitive textarea output', async () => {
+    const source = '<textarea>\n  Hello, {{name}}!\n</textarea>\n';
 
     await expectRenderStable(source, { name: 'Igor' });
   });
