@@ -17,12 +17,29 @@ import {
   UnmatchedNode,
 } from './types';
 
-const { hardline, join, group, indent, line, softline, ifBreak, lineSuffix, lineSuffixBoundary } = builders;
+const { hardline, join, group, indent, align, line, softline, ifBreak, lineSuffix, lineSuffixBoundary } = builders;
 const { stripTrailingHardline, willBreak } = utils;
 const mapDoc = (utils as unknown as { mapDoc: (doc: Doc, cb: (doc: Doc) => Doc) => Doc }).mapDoc;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
 const whitespaceSensitiveRawTextTags = new Set(['pre', 'textarea']);
 const trimmableRawTextTags = new Set(['script', 'style']);
+const voidTags = new Set([
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'keygen',
+  'link',
+  'meta',
+  'param',
+  'source',
+  'track',
+  'wbr',
+]);
 type PrintableExpression = MustacheStatement | BlockStatement | ElseBranch | PartialStatement | DecoratorStatement;
 type CallableStatement = MustacheStatement | DecoratorStatement;
 
@@ -643,6 +660,7 @@ function printProgram(path: AstPath<Program>, options: ParserOptions, print: (pa
   const parts: Doc[] = [];
   const nodes: Node[] = [];
   const isRootProgram = !path.getParentNode();
+  let rootFragmentDepth = 0;
 
   path.each((childPath) => {
     const childNode = childPath.getValue() as Node;
@@ -650,18 +668,42 @@ function printProgram(path: AstPath<Program>, options: ParserOptions, print: (pa
       return;
     }
 
+    const closingTagName = getHtmlClosingTagName(childNode);
+    if (closingTagName && closingTagName !== 'html') {
+      rootFragmentDepth = Math.max(rootFragmentDepth - 1, 0);
+    }
+
     let doc = print(childPath as AstPath<Node>);
     if (doc === null) {
       return;
     }
 
-    const standaloneIndent = isRootProgram ? getOriginalStandaloneIndent(childNode, options) : '';
-    if (standaloneIndent && !docBreaks(doc)) {
-      doc = concat([standaloneIndent, doc]);
+    if (isRootProgram && rootFragmentDepth > 0) {
+      doc = applyRootFragmentIndent(doc, rootFragmentDepth, options);
+    } else if (isRootProgram && shouldPreserveRootClosingTagIndent(childNode)) {
+      const standaloneIndent = getOriginalStandaloneIndent(childNode, options);
+      if (standaloneIndent) {
+        doc = concat([standaloneIndent, doc]);
+      }
+    } else if (isRootProgram && shouldPreserveRootHandlebarsIndent(childNode)) {
+      const standaloneIndent = getOriginalStandaloneIndent(childNode, options);
+      if (standaloneIndent && !docBreaks(doc)) {
+        doc = concat([standaloneIndent, doc]);
+      }
     }
 
     nodes.push(childNode);
     parts.push(doc);
+
+    const openingTagName = getHtmlOpeningTagName(childNode);
+    if (
+      openingTagName &&
+      openingTagName !== 'html' &&
+      !voidTags.has(openingTagName) &&
+      (rootFragmentDepth > 0 || openingTagName === 'head' || openingTagName === 'body')
+    ) {
+      rootFragmentDepth += 1;
+    }
   }, 'body');
 
   if (parts.length === 0) {
@@ -702,17 +744,15 @@ function printProgram(path: AstPath<Program>, options: ParserOptions, print: (pa
 }
 
 function getOriginalStandaloneIndent(node: Node, options: ParserOptions): string {
-  if (!shouldPreserveStandaloneIndent(node)) {
-    return '';
-  }
-
   const range = (node as { range?: [number, number] }).range;
   const originalText = (options as { originalText?: string }).originalText;
   if (!range || !originalText) {
     return '';
   }
 
-  if (/[\r\n]/.test(originalText.slice(range[0], range[1]))) {
+  const nodeText = originalText.slice(range[0], range[1]);
+  const nodeSpansMultipleLines = /[\r\n]/.test(nodeText);
+  if (nodeSpansMultipleLines && node.type !== 'ElementNode') {
     return '';
   }
 
@@ -722,18 +762,53 @@ function getOriginalStandaloneIndent(node: Node, options: ParserOptions): string
     return '';
   }
 
-  const nextLineBreak = originalText.indexOf('\n', range[1]);
-  const lineEnd = nextLineBreak === -1 ? originalText.length : nextLineBreak;
-  const after = originalText.slice(range[1], lineEnd);
-  if (!/^[ \t\r]*$/.test(after)) {
-    return '';
+  if (!nodeSpansMultipleLines) {
+    const nextLineBreak = originalText.indexOf('\n', range[1]);
+    const lineEnd = nextLineBreak === -1 ? originalText.length : nextLineBreak;
+    const after = originalText.slice(range[1], lineEnd);
+    if (!/^[ \t\r]*$/.test(after)) {
+      return '';
+    }
   }
 
   return before;
 }
 
-function shouldPreserveStandaloneIndent(node: Node): boolean {
-  return node.type === 'MustacheStatement' || node.type === 'PartialStatement' || node.type === 'DecoratorStatement';
+function applyRootFragmentIndent(doc: Doc, depth: number, options: ParserOptions): Doc {
+  const prefix = getIndentUnit(options).repeat(depth);
+  return prefix ? concat([prefix, align(prefix, doc)]) : doc;
+}
+
+function shouldPreserveRootClosingTagIndent(node: Node): boolean {
+  return Boolean(getHtmlClosingTagName(node));
+}
+
+function shouldPreserveRootHandlebarsIndent(node: Node): boolean {
+  return (
+    node.type === 'MustacheStatement' ||
+    node.type === 'PartialStatement' ||
+    node.type === 'DecoratorStatement'
+  );
+}
+
+function getUnmatchedRaw(node: Node): string {
+  return node.type === 'UnmatchedNode' ? ((node as UnmatchedNode).raw ?? '').trim() : '';
+}
+
+function getTextValue(node: Node): string {
+  return node.type === 'TextNode' ? ((node as TextNode).value ?? '').trim() : '';
+}
+
+function getHtmlOpeningTagName(node: Node): string | null {
+  const raw = getUnmatchedRaw(node);
+  const match = raw.match(/^<([A-Za-z][\w:-]*)(?:\s|>|\/>)/u);
+  return match ? match[1].toLowerCase() : null;
+}
+
+function getHtmlClosingTagName(node: Node): string | null {
+  const value = getUnmatchedRaw(node) || getTextValue(node);
+  const match = value.match(/^<\/([A-Za-z][\w:-]*)\s*>$/u);
+  return match ? match[1].toLowerCase() : null;
 }
 
 function canPrintRootInlineTextTemplate(nodes: Node[], options: ParserOptions): boolean {

@@ -121,4 +121,46 @@ describe('medium formatter coverage', () => {
       `,
     );
   });
+
+  it('indents children of unmatched html fragment tags', async () => {
+    const source = [
+      '<!doctype html>',
+      '<html lang="ru">',
+      '\t<head>',
+      '\t\t<meta charset="utf-8" />',
+      '\t\t<title>{{ headTitle }}</title>',
+      '\t</head>',
+      '\t<body>',
+      '\t\t<div>',
+      '',
+    ].join('\n');
+
+    const expected = [
+      '<!doctype html>',
+      '<html lang="ru">',
+      '<head>',
+      '\t<meta charset="utf-8" />',
+      '\t<title>{{ headTitle }}</title>',
+      '</head>',
+      '<body>',
+      '\t<div>',
+      '',
+    ].join('\n');
+
+    await expectStableFormat(source, expected, {
+      printWidth: 120,
+      tabWidth: 4,
+      useTabs: true,
+    });
+  });
+
+  it('preserves standalone indentation for root closing tags in split layout partials', async () => {
+    const layoutEnd = ['\t\t</div>', '\t</body>', '</html>', ''].join('\n');
+
+    await expectStableFormat(layoutEnd, layoutEnd, {
+      printWidth: 120,
+      tabWidth: 4,
+      useTabs: true,
+    });
+  });
 });
