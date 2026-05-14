@@ -1115,6 +1115,10 @@ function printAttribute(attr: ElementAttribute, options: ParserOptions): Doc {
       return printAttributeBlock(attr.block as BlockStatement);
     }
 
+    if ((attr.block as Node).type === 'CommentStatement') {
+      return printCommentStatement(attr.block as CommentStatement, options);
+    }
+
     return stringifyNode(attr.block as Node);
   }
 
@@ -1941,6 +1945,7 @@ function formatPartialParam(param: string, options: ParserOptions): Doc {
 }
 
 function formatMultilineComment(content: string, options: ParserOptions, inlineMarkers = false): Doc {
+  const hasStandaloneCloseMarker = inlineMarkers && /\n[ \t]*$/.test(content);
   const lines = trimSurroundingBlankLines(content.replace(/[ \t]+$/gm, '').split('\n'));
   const shouldInlineMarkup = !inlineMarkers && shouldFormatCommentAsInlineMarkup(lines);
 
@@ -1954,13 +1959,33 @@ function formatMultilineComment(content: string, options: ParserOptions, inlineM
     const first = firstLine.trimStart();
 
     if (restLines.length === 0) {
-      return concat(['{{!-- ', first, ' --}}']);
+      return hasStandaloneCloseMarker
+        ? concat(['{{!-- ', first, hardline, '--}}'])
+        : concat(['{{!-- ', first, ' --}}']);
     }
 
-    const normalizedRest = normalizeInlineCommentLines(restLines, options);
+    const normalizedRest = normalizeInlineCommentLines(restLines, options).map((line) => {
+      if (!hasStandaloneCloseMarker || line.trim() === '') {
+        return line;
+      }
+
+      return `${getIndentUnit(options)}${line}`;
+    });
 
     const lastLine = normalizedRest[normalizedRest.length - 1];
     const leadingLines = normalizedRest.slice(0, -1);
+
+    if (hasStandaloneCloseMarker) {
+      return concat([
+        '{{!-- ',
+        first,
+        hardline,
+        leadingLines.length > 0 ? concat([join(hardline, leadingLines), hardline]) : '',
+        lastLine,
+        hardline,
+        '--}}',
+      ]);
+    }
 
     return concat([
       '{{!-- ',

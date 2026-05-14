@@ -1691,6 +1691,46 @@ describe('multiline comment indentation', () => {
       --}}
     `));
   });
+
+  it('keeps standalone closing marker indented for multiline comments inside opening tags', async () => {
+    const input = stripIndent(`
+      <a
+        class="pagination__link pagination__link--active"
+        href="#"
+        {{!-- start active
+          @backend помимо модификатора pagination__link--active добавит следующие атрибуты:
+        --}}
+        aria-disabled="true"
+        tabindex="-1"
+        aria-current="page"
+        {{!-- end active --}}
+      >
+        2
+      </a>
+    `);
+
+    const output = await format(input, { useTabs: true, tabWidth: 2 });
+
+    const expected = stripIndentWithNL(`
+      <a
+      \\tclass="pagination__link pagination__link--active"
+      \\thref="#"
+      \\t{{!-- start active
+      \\t\\t@backend помимо модификатора pagination__link--active добавит следующие атрибуты:
+      \\t--}}
+      \\taria-disabled="true"
+      \\ttabindex="-1"
+      \\taria-current="page"
+      \\t{{!-- end active --}}
+      >
+      \\t2
+      </a>
+    `).replace(/\\t/g, '\t');
+
+    expect(output).toBe(expected);
+    expect(output).not.toContain('\n --}}');
+    expect(await format(output, { useTabs: true, tabWidth: 2 })).toBe(output);
+  });
 });
 
 describe('unmatched structures', () => {
