@@ -402,6 +402,42 @@ describe('class with condition', () => {
       `),
     );
   });
+
+  it('keeps conditional class suffixes glued to their preceding class token', async () => {
+    const input =
+      `<button class="js-btn-tg button-primary button-primary--tab-{{#ifEquals modification 'light'}}primary{{else}}secondary{{modification}}{{/ifEquals}}" type="button"></button>`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <button
+        class="js-btn-tg button-primary button-primary--tab-{{#ifEquals modification 'light'}}primary{{else}}secondary{{ modification }}{{/ifEquals}}"
+        type="button"
+      ></button>
+    `));
+  });
+
+  it('keeps conditional BEM suffix blocks glued to the base class token', async () => {
+    const input = `<div class="form-primary__box2{{#if breakpoint}}--row-{{breakpoint}}{{/if}}"></div>`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <div
+        class="form-primary__box2{{#if breakpoint}}--row-{{ breakpoint }}{{/if}}"
+      ></div>
+    `));
+  });
+
+  it('keeps nested conditional BEM suffix blocks glued inside class branches', async () => {
+    const input =
+      `<div class="form-primary__box2 {{#if breakpoint}}form-primary__box2--row{{#if breakpoint}}-{{breakpoint}}{{/if}}{{/if}}"></div>`;
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      <div
+        class="form-primary__box2 {{#if breakpoint}}form-primary__box2--row{{#if breakpoint}}-{{ breakpoint }}{{/if}}{{/if}}"
+      ></div>
+    `));
+  });
 });
 
 describe('decorators', () => {

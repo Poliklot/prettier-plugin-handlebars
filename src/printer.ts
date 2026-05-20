@@ -1204,7 +1204,14 @@ function printAttribute(attr: ElementAttribute, options: ParserOptions): Doc {
   const valueString = stringifyAttributeValue(attr.value as AttributeValue);
   const quote = chooseAttributeQuote(valueString, options);
 
-  if (attr.name === 'class' && /{{#/.test(valueString)) {
+  if (attr.name === 'class' && hasHandlebarsBlock(valueString)) {
+    if (classValueHasGluedBlock(attr.value as AttributeValue)) {
+      const compactValue = stringifyCompactClassValue(attr.value as AttributeValue);
+      const compactQuote = chooseAttributeQuote(compactValue, options);
+
+      return concat([attr.name, '=', compactQuote, escapeAttributeValue(compactValue, compactQuote), compactQuote]);
+    }
+
     const classLines = formatClassValue(valueString, options);
     return concat([
       'class=',
@@ -1280,6 +1287,242 @@ function printAttributeBlock(block: BlockStatement): Doc {
 
 function stringifyAttributeValue(value: AttributeValue): string {
   return value.parts.map((part) => stringifyNode(part as Node)).join('');
+}
+
+function getLastClassToken(value: string): string {
+  return value.match(/\S+\s*$/)?.[0].trim() ?? '';
+}
+
+function classTokenEndsWithContinuation(token: string): boolean {
+  return /[-_:]$/.test(token);
+}
+
+function blockProgramToCompactClassValue(program: Program): string {
+  const parts: string[] = [];
+  let previousNode: Node | null = null;
+
+  program.body.forEach((child) => {
+    const node = child as Node;
+    const value = stringifyCompactClassNode(node);
+    if (!value) {
+      return;
+    }
+
+    if (previousNode && shouldInsertCompactClassSeparator(previousNode, node)) {
+      parts.push(' ');
+    }
+
+    parts.push(value);
+    previousNode = node;
+  });
+
+  return parts.join('');
+}
+
+function stringifyCompactClassNode(node: Node): string {
+  switch (node.type) {
+    case 'TextNode':
+      return normalizeInlineText((node as TextNode).value);
+    case 'MustacheStatement':
+      return stringifyMustache(node as MustacheStatement);
+    case 'DecoratorStatement':
+      return stringifyDecorator(node as DecoratorStatement);
+    case 'PartialStatement':
+      return `{{${getTrimOpen(node as PartialStatement)}> ${buildExpression(node as PartialStatement)}${getTrimClose(node as PartialStatement)}}}`;
+    case 'BlockStatement':
+      return stringifyCompactClassBlock(node as BlockStatement);
+    case 'CommentStatement':
+      return stringifyNode(node);
+    default:
+      return stringifyNode(node);
+  }
+}
+
+function shouldInsertCompactClassSeparator(left: Node, right: Node): boolean {
+  if (left.type === 'TextNode') {
+    const trailingWhitespace = (left as TextNode).trailingWhitespace;
+    if (trailingWhitespace && !hasLineBreak(trailingWhitespace)) {
+      return true;
+    }
+  }
+
+  if (right.type === 'TextNode') {
+    const leadingWhitespace = (right as TextNode).leadingWhitespace;
+    if (leadingWhitespace && !hasLineBreak(leadingWhitespace)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function stringifyCompactClassBlock(block: BlockStatement): string {
+  const prefix = getBlockPrefix(block);
+  const printedPrefix = prefix === '#>' ? '#> ' : prefix;
+  const expression = buildExpression(block);
+  const open = `{{${getTrimOpen(block)}${printedPrefix}${expression}${getTrimClosePadding(block, expression)}${getTrimClose(block)}}}`;
+  const program = blockProgramToCompactClassValue(block.program as Program);
+  const inverseChain = (block.inverseChain ?? [])
+    .map((branch) => {
+      const branchExpression = buildExpression(branch);
+      return `{{${getTrimOpen(branch)}else ${branchExpression}${getTrimClosePadding(branch, branchExpression)}${getTrimClose(branch)}}}${blockProgramToCompactClassValue(branch.program as Program)}`;
+    })
+    .join('');
+  const inverse =
+    block.inverse.body.length > 0
+      ? `{{${block.inverseTrimOpen ? '~' : ''}else${block.inverseTrimClose ? '~' : ''}}}${blockProgramToCompactClassValue(block.inverse as Program)}`
+      : '';
+  const close = `{{${block.closeTrimOpen ? '~' : ''}/${block.path}${block.closeTrimClose ? '~' : ''}}}`;
+
+  return `${open}${program}${inverseChain}${inverse}${close}`;
+}
+
+function getClassBlockPrograms(block: BlockStatement): Program[] {
+  return [
+    block.program as Program,
+    ...((block.inverseChain ?? []).map((branch) => branch.program as Program)),
+    block.inverse as Program,
+  ];
+}
+
+function getFirstRenderableProgramNode(program: Program): Node | undefined {
+  return (program.body as Node[]).find((node) => stringifyCompactClassNode(node).length > 0);
+}
+
+function getLastRenderableProgramNode(program: Program): Node | undefined {
+  return (program.body as Node[])
+    .slice()
+    .reverse()
+    .find((node) => stringifyCompactClassNode(node).length > 0);
+}
+
+function hasRenderableProgramContent(program: Program): boolean {
+  return Boolean(getFirstRenderableProgramNode(program));
+}
+
+function programStartsWithClassSeparator(program: Program): boolean {
+  const first = getFirstRenderableProgramNode(program);
+  return first?.type === 'TextNode' && Boolean((first as TextNode).leadingWhitespace);
+}
+
+function programEndsWithClassSeparator(program: Program): boolean {
+  const last = getLastRenderableProgramNode(program);
+  return last?.type === 'TextNode' && Boolean((last as TextNode).trailingWhitespace);
+}
+
+function blockStartsWithClassSeparator(block: BlockStatement): boolean {
+  const programs = getClassBlockPrograms(block).filter(hasRenderableProgramContent);
+  return programs.length > 0 && programs.every(programStartsWithClassSeparator);
+}
+
+function blockEndsWithClassSeparator(block: BlockStatement): boolean {
+  const programs = getClassBlockPrograms(block).filter(hasRenderableProgramContent);
+  return programs.length > 0 && programs.every(programEndsWithClassSeparator);
+}
+
+function shouldGlueTextToFollowingClassBlock(text: string, block: BlockStatement): boolean {
+  if (blockStartsWithClassSeparator(block)) {
+    return false;
+  }
+
+  return !/\s$/.test(text) || classTokenEndsWithContinuation(getLastClassToken(text));
+}
+
+function shouldGlueClassBlockToFollowingText(block: BlockStatement, text: string): boolean {
+  if (blockEndsWithClassSeparator(block)) {
+    return false;
+  }
+
+  return !/^\s/.test(text);
+}
+
+function programHasGluedClassBlock(program: Program): boolean {
+  const body = program.body as Node[];
+
+  return body.some((node, index) => {
+    if (node.type !== 'BlockStatement') {
+      return false;
+    }
+
+    const previous = body[index - 1];
+    const next = body[index + 1];
+    const block = node as BlockStatement;
+    const isGluedToSibling =
+      (previous?.type === 'TextNode' && shouldGlueTextToFollowingClassBlock((previous as TextNode).value, block)) ||
+      (next?.type === 'TextNode' && shouldGlueClassBlockToFollowingText(block, (next as TextNode).value));
+
+    return isGluedToSibling || classBlockHasNestedGluedBlock(block);
+  });
+}
+
+function classBlockHasNestedGluedBlock(block: BlockStatement): boolean {
+  return getClassBlockPrograms(block).some(programHasGluedClassBlock);
+}
+
+function classValueHasGluedBlock(value: AttributeValue): boolean {
+  return value.parts.some((part, index, parts) => {
+    if (part.type !== 'BlockStatement') {
+      return false;
+    }
+
+    const previous = parts[index - 1];
+    const next = parts[index + 1];
+
+    return (
+      (previous?.type === 'TextNode' &&
+        shouldGlueTextToFollowingClassBlock((previous as TextNode).value, part as BlockStatement)) ||
+      (next?.type === 'TextNode' &&
+        shouldGlueClassBlockToFollowingText(part as BlockStatement, (next as TextNode).value)) ||
+      classBlockHasNestedGluedBlock(part as BlockStatement)
+    );
+  });
+}
+
+function stringifyCompactClassValue(value: AttributeValue): string {
+  const pieces: string[] = [];
+
+  value.parts.forEach((part, index, parts) => {
+    const previous = parts[index - 1];
+    const next = parts[index + 1];
+
+    if (part.type === 'TextNode') {
+      let text = (part as TextNode).value.replace(/\s+/g, ' ');
+
+      if (index === 0) {
+        text = text.trimStart();
+      }
+
+      if (index === parts.length - 1) {
+        text = text.trimEnd();
+      }
+
+      if (
+        next?.type === 'BlockStatement' &&
+        shouldGlueTextToFollowingClassBlock((part as TextNode).value, next as BlockStatement)
+      ) {
+        text = text.trimEnd();
+      }
+
+      if (
+        previous?.type === 'BlockStatement' &&
+        shouldGlueClassBlockToFollowingText(previous as BlockStatement, (part as TextNode).value)
+      ) {
+        text = text.trimStart();
+      }
+
+      pieces.push(text);
+      return;
+    }
+
+    if (part.type === 'BlockStatement') {
+      pieces.push(stringifyCompactClassBlock(part as BlockStatement));
+      return;
+    }
+
+    pieces.push(stringifyCompactClassNode(part as Node));
+  });
+
+  return pieces.join('').trim();
 }
 
 function stringifyAttribute(attr: ElementAttribute, options?: ParserOptions): string {
