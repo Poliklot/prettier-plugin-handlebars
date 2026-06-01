@@ -9,6 +9,9 @@ const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const prettierBin = process.platform === 'win32'
   ? path.join('node_modules', '.bin', 'prettier.cmd')
   : path.join('node_modules', '.bin', 'prettier');
+const initBin = process.platform === 'win32'
+  ? path.join('node_modules', '.bin', 'prettier-plugin-handlebars.cmd')
+  : path.join('node_modules', '.bin', 'prettier-plugin-handlebars');
 const prettierVersion = process.env.PRETTIER_VERSION || 'latest';
 const keepTemp = process.env.KEEP_INSTALL_SMOKE === '1';
 
@@ -111,6 +114,7 @@ try {
   });
 
   run(path.join(projectRoot, prettierBin), ['--write', 'sample.hbs'], { cwd: projectRoot });
+  run(path.join(projectRoot, initBin), ['init', '--check'], { cwd: projectRoot });
 
   const formatted = await fs.readFile(path.join(projectRoot, 'sample.hbs'), 'utf8');
   const expected = [

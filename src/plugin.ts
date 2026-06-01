@@ -43,5 +43,4 @@ export const options = {
   },
 };
 
-/* @todo */
 export const defaultOptions = {};

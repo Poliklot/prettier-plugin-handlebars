@@ -37,7 +37,8 @@
   },
   "files": [
     "dist",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "docs"
   ],
   "scripts": {
     "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json",
@@ -61,5 +62,9 @@
   },
   "peerDependencies": {
     "prettier": ">=3.0.0"
+  },
+  "bin": {
+    "prettier-plugin-handlebars": "./dist/cli.js",
+    "hbs-prettier-init": "./dist/cli.js"
   }
 }

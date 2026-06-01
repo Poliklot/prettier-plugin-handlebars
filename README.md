@@ -143,6 +143,35 @@ Local plugin build:
 npx prettier --write "src/**/*.{hbs,handlebars}" --plugin ../prettier-plugin-handlebars/dist/plugin.js --parser handlebars
 ```
 
+## Project Setup Audit
+
+The package also ships a small setup helper:
+
+```bash
+npx @poliklot/prettier-plugin-handlebars init
+```
+
+By default this is a dry run. It reports whether the project has:
+
+- local `prettier` and `@poliklot/prettier-plugin-handlebars` dependencies;
+- a Prettier config that loads the plugin;
+- an explicit `*.hbs` / `*.handlebars` override with `parser: "handlebars"`;
+- `.prettierignore` patterns that skip Handlebars files.
+
+Apply supported JSON config changes with:
+
+```bash
+npx @poliklot/prettier-plugin-handlebars init --write
+```
+
+Use it in CI or local checks with:
+
+```bash
+npx @poliklot/prettier-plugin-handlebars init --check
+```
+
+The helper can create or update `.prettierrc`, `.prettierrc.json`, and the `prettier` object in `package.json`. JavaScript, JSON5, YAML, and TOML configs are detected but not rewritten automatically; the command prints the manual action instead.
+
 ## API
 
 ```js
@@ -164,6 +193,10 @@ async function run(source) {
 
 Custom ordering override for `data-*` attributes.
 
+| Default | CLI Override | API Override |
+| --- | --- | --- |
+| `[]` | `--data-attribute-order <value>` | `dataAttributeOrder: string[]` |
+
 ```json
 {
   "plugins": ["@poliklot/prettier-plugin-handlebars"],
@@ -174,6 +207,10 @@ Custom ordering override for `data-*` attributes.
 ### `maxEmptyLines`
 
 Maximum number of consecutive blank lines preserved between nodes.
+
+| Default | CLI Override | API Override |
+| --- | --- | --- |
+| `1` | `--max-empty-lines <int>` | `maxEmptyLines: number` |
 
 ```json
 {
@@ -304,6 +341,15 @@ Useful scripts:
 ## VS Code Companion
 
 If you work with Handlebars in VS Code, try [HBS Master](https://marketplace.visualstudio.com/items?itemName=poliklot.hbs-master) as a companion extension. It pairs well with this formatter and makes day-to-day `.hbs` editing more comfortable.
+
+For formatter setup details, see [Editor Setup](./docs/EDITOR_SETUP.md).
+
+## Troubleshooting and Migration
+
+- [Troubleshooting](./docs/TROUBLESHOOTING.md)
+- [Editor Setup](./docs/EDITOR_SETUP.md)
+- [Migration Notes](./docs/MIGRATION.md)
+- [Changelog](./CHANGELOG.md)
 
 ## Notes
 
