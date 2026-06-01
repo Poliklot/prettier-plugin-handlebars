@@ -133,7 +133,7 @@ function shouldKeepParamInline(param: string): boolean {
   return param.includes('\n') || /^\(parseJSON\s+['"`]/.test(param.trim());
 }
 
-function getBlockPrefix(node: BlockStatement): '#' | '#>' | '#*' | '^' {
+function getBlockPrefix(node: BlockStatement): '#' | '#>' | '#*' | '^' | '<' | '$' {
   return node.blockPrefix ?? '#';
 }
 
@@ -599,7 +599,7 @@ function isUnsafeEmbeddedHandlebarsToken(content: string, token: EmbeddedHandleb
     inner === '' ||
     inner === 'else' ||
     inner.startsWith('else ') ||
-    /^[#/!>*]/.test(inner) ||
+    /^[#/!>*<$]/.test(inner) ||
     isStandaloneEmbeddedHandlebarsToken(content, token)
   );
 }
@@ -787,7 +787,8 @@ function shouldPreserveRootHandlebarsIndent(node: Node): boolean {
   return (
     node.type === 'MustacheStatement' ||
     node.type === 'PartialStatement' ||
-    node.type === 'DecoratorStatement'
+    node.type === 'DecoratorStatement' ||
+    node.type === 'BlockStatement'
   );
 }
 
@@ -1358,7 +1359,7 @@ function shouldInsertCompactClassSeparator(left: Node, right: Node): boolean {
 
 function stringifyCompactClassBlock(block: BlockStatement): string {
   const prefix = getBlockPrefix(block);
-  const printedPrefix = prefix === '#>' ? '#> ' : prefix;
+  const printedPrefix = getPrintedBlockPrefix(prefix);
   const expression = buildExpression(block);
   const open = `{{${getTrimOpen(block)}${printedPrefix}${expression}${getTrimClosePadding(block, expression)}${getTrimClose(block)}}}`;
   const program = blockProgramToCompactClassValue(block.program as Program);
@@ -1779,7 +1780,7 @@ function canInlineBlock(
   parentType: Node['type'] | undefined,
 ): boolean {
   const blockPrefix = getBlockPrefix(node);
-  if (blockPrefix !== '#' && blockPrefix !== '^' && blockPrefix !== '#*') {
+  if (blockPrefix !== '#' && blockPrefix !== '^' && blockPrefix !== '#*' && blockPrefix !== '$') {
     return false;
   }
 
@@ -1846,7 +1847,7 @@ function stringifyNode(node: Node): string {
     case 'BlockStatement': {
       const block = node as BlockStatement;
       const prefix = getBlockPrefix(block);
-      const printedPrefix = prefix === '#>' ? '#> ' : prefix;
+      const printedPrefix = getPrintedBlockPrefix(prefix);
       const expression = buildExpression(block);
       const open = `{{${getTrimOpen(block)}${printedPrefix}${expression}${getTrimClosePadding(block, expression)}${getTrimClose(block)}}}`;
       const program = stringifyInlineChildren(block.program.body as Node[]);
@@ -2175,9 +2176,17 @@ function printBlock(path: AstPath<BlockStatement>, options: ParserOptions, print
 function printBlockOpen(node: BlockStatement): Doc {
   const expression = buildExpression(node);
   const prefix = getBlockPrefix(node);
-  const printedPrefix = prefix === '#>' ? '#> ' : prefix;
+  const printedPrefix = getPrintedBlockPrefix(prefix);
 
   return printExpressionTag(['{{', getTrimOpen(node), printedPrefix], expression, node);
+}
+
+function getPrintedBlockPrefix(prefix: ReturnType<typeof getBlockPrefix>): string {
+  if (prefix === '#>' || prefix === '<') {
+    return `${prefix} `;
+  }
+
+  return prefix;
 }
 
 function printExpressionTag(openParts: Doc[], expression: string, node: BlockStatement | ElseBranch): Doc {

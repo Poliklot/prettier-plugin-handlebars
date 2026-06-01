@@ -176,7 +176,7 @@ function parseChildren(
 
       if (token.kind === 'blockStart') {
         if (!hasMatchingBlockEnd(text, token, pos)) {
-          const preserveEnd = token.specialForm === 'blockPartial' ? text.length : token.end;
+          const preserveEnd = shouldPreserveUnclosedBlockRemainder(token) ? text.length : token.end;
           nodes.push(createUnmatchedNode(text, pos, preserveEnd));
           pos = preserveEnd;
           continue;
@@ -547,7 +547,7 @@ function getBlockExpression(token: MustacheToken): string {
   return token.content.slice(1).trim();
 }
 
-function getBlockPrefix(token: MustacheToken): '#' | '#>' | '#*' | '^' {
+function getBlockPrefix(token: MustacheToken): '#' | '#>' | '#*' | '^' | '<' | '$' {
   if (token.specialForm === 'blockPartial') {
     return '#>';
   }
@@ -560,7 +560,19 @@ function getBlockPrefix(token: MustacheToken): '#' | '#>' | '#*' | '^' {
     return '^';
   }
 
+  if (token.specialForm === 'parent') {
+    return '<';
+  }
+
+  if (token.specialForm === 'mustacheBlock') {
+    return '$';
+  }
+
   return '#';
+}
+
+function shouldPreserveUnclosedBlockRemainder(token: MustacheToken): boolean {
+  return token.specialForm === 'blockPartial' || token.specialForm === 'parent';
 }
 
 function hasMatchingTagEnd(text: string, tag: string, start: number, limit = -1): boolean {
@@ -694,7 +706,7 @@ interface MustacheToken {
   rawInner: string;
   trimOpen: boolean;
   trimClose: boolean;
-  specialForm?: 'blockPartial' | 'decoratorBlock' | 'decorator' | 'elseIf' | 'inverseBlock';
+  specialForm?: 'blockPartial' | 'decoratorBlock' | 'decorator' | 'elseIf' | 'inverseBlock' | 'parent' | 'mustacheBlock';
 }
 
 function parseMustacheToken(text: string, position: number): MustacheToken {
@@ -731,6 +743,11 @@ function parseMustacheToken(text: string, position: number): MustacheToken {
     return { kind: 'partial', content: inner.slice(1).trim(), name: undefined, ...baseToken };
   }
 
+  if (inner.startsWith('<')) {
+    const name = inner.slice(1).trim().split(/\s+/)[0];
+    return { kind: 'blockStart', content: inner, name, specialForm: 'parent', ...baseToken };
+  }
+
   if (inner.startsWith('#>')) {
     const name = inner.slice(2).trim().split(/\s+/)[0];
     return { kind: 'blockStart', content: inner, name, specialForm: 'blockPartial', ...baseToken };
@@ -753,6 +770,11 @@ function parseMustacheToken(text: string, position: number): MustacheToken {
   if (inner.startsWith('^')) {
     const name = inner.slice(1).trim().split(/\s+/)[0];
     return { kind: 'blockStart', content: inner, name, specialForm: 'inverseBlock', ...baseToken };
+  }
+
+  if (inner.startsWith('$')) {
+    const name = inner.slice(1).trim().split(/\s+/)[0];
+    return { kind: 'blockStart', content: inner, name, specialForm: 'mustacheBlock', ...baseToken };
   }
 
   if (inner.startsWith('/')) {

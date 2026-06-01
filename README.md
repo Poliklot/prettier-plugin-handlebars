@@ -190,6 +190,7 @@ Maximum number of consecutive blank lines preserved between nodes.
 - raw blocks such as `{{{{raw}}}}...{{{{/raw}}}}`
 - block partials such as `{{#> layout}}...{{/layout}}`
 - inline partial definitions such as `{{#*inline "name"}}...{{/inline}}`
+- Mustache inheritance with parent templates and block overrides, such as `{{< layout}}...{{$title}}...{{/title}}{{/layout}}`
 - Handlebars inside attribute values
 - unquoted mustache attribute values such as `src={{ imgSrc }}`
 - Handlebars blocks that emit attributes
@@ -245,6 +246,20 @@ Maximum number of consecutive blank lines preserved between nodes.
 ```
 
 The parser accepts common source styles such as `id= 'value'` and `type = 'text'`, then prints them consistently as hash params.
+
+### Mustache parent templates
+
+The formatter is still Handlebars-first, but it also understands Mustache inheritance syntax used by projects such as Moodle:
+
+```mustache
+{{< theme_boost/drawer}}
+  {{$drawerclasses}}{{{ classes }}}{{/drawerclasses}}
+  {{$id}}{{{ id }}}{{/id}}
+  {{$drawercontent}}{{{ content }}}{{/drawercontent}}
+{{/theme_boost/drawer}}
+```
+
+Parent tags (`{{< layout}}`) stay expanded, while simple override blocks (`{{$name}}...{{/name}}`) can stay compact. This avoids the old behavior where `{{$name}}` was treated as a simple mustache and printed as `{{ $name }}`.
 
 ### Classic comparison helpers
 

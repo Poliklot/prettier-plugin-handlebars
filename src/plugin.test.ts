@@ -804,6 +804,92 @@ describe('inverse sections', () => {
   });
 });
 
+describe('mustache inheritance', () => {
+  it('keeps parent templates readable and formats block overrides as blocks', async () => {
+    const input = stripIndent(`
+      {{< theme_boost/drawer}}
+          {{$drawerclasses}}{{{classes}}}{{/drawerclasses}}
+          {{$id}}{{{id}}}{{/id}}
+          {{$drawerstate}}{{{state}}}{{/drawerstate}}
+          {{$tooltipplacement}}{{{tooltip}}}{{/tooltipplacement}}
+          {{$drawercontent}}{{{content}}}{{/drawercontent}}
+          {{! drawerheading (>= 402) will be put into an a element (>= 404) }}
+          {{! => we use drawerheadercontent instead}}
+          {{$drawerheadercontent}}{{{heading}}}{{/drawerheadercontent}}
+      {{/ theme_boost/drawer}}
+    `);
+
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{< theme_boost/drawer}}
+        {{$drawerclasses}}{{{ classes }}}{{/drawerclasses}}
+        {{$id}}{{{ id }}}{{/id}}
+        {{$drawerstate}}{{{ state }}}{{/drawerstate}}
+        {{$tooltipplacement}}{{{ tooltip }}}{{/tooltipplacement}}
+        {{$drawercontent}}{{{ content }}}{{/drawercontent}}
+        {{! drawerheading (>= 402) will be put into an a element (>= 404)}}
+        {{! => we use drawerheadercontent instead}}
+        {{$drawerheadercontent}}{{{ heading }}}{{/drawerheadercontent}}
+      {{/theme_boost/drawer}}
+    `));
+    expect(await format(output)).toBe(output);
+  });
+
+  it('supports dynamic parent names', async () => {
+    const output = await format('{{<*dynamic}}{{$text}}Hello{{/text}}{{/*dynamic}}');
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{< *dynamic}}
+        {{$text}}Hello{{/text}}
+      {{/*dynamic}}
+    `));
+  });
+
+  it('expands multiline override block content like regular block bodies', async () => {
+    const input = stripIndent(`
+      {{< article}}
+        {{$body}}
+        <section class="article__body">{{{content}}}</section>
+        {{/body}}
+      {{/article}}
+    `);
+
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{< article}}
+        {{$body}}
+          <section class="article__body">
+            {{{ content }}}
+          </section>
+        {{/body}}
+      {{/article}}
+    `));
+    expect(await format(output)).toBe(output);
+  });
+
+  it('preserves incomplete parent templates instead of formatting a guessed body', async () => {
+    const input = stripIndent(`
+      {{< layout}}
+        <main>{{body}}</main>
+    `);
+
+    const output = await format(input);
+
+    expect(output).toBe(stripIndentWithNL(`
+      {{< layout}}
+        <main>{{body}}</main>
+    `));
+  });
+
+  it('does not treat less-than helper params as parent-template syntax', async () => {
+    const output = await format(`{{compare count '<' limit}}`);
+
+    expect(output).toBe(stripIndentWithNL(`{{compare count '<' limit}}`));
+  });
+});
+
 describe('helpers with hash pairs', () => {
   it('prints multiple hash pairs on separate lines', async () => {
     const input = `
