@@ -6,6 +6,8 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## Unreleased
 
+## 0.2.13 - 2026-06-01
+
 ### Added
 
 - Added support for Mustache inheritance parent templates: `{{< layout}}...{{/layout}}`.
