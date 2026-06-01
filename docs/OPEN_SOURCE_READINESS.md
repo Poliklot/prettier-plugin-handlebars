@@ -28,6 +28,7 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 | release-blocker | Covered | Handlebars whitespace control `~` | Very common in production HBS and whitespace-sensitive templates. |
 | release-blocker | Covered | Raw blocks `{{{{raw}}}} ... {{{{/raw}}}}` | Must not be misparsed as regular blocks. |
 | release-blocker | Covered | Block partials `{{#> layout}} ... {{/layout}}` | Common in larger Handlebars ecosystems. |
+| release-blocker | Covered | Mustache inheritance `{{< layout}}` and `{{$block}}` | Mustache-compatible projects use parent templates and block overrides for layouts. |
 | release-blocker | Covered | Inline partial definitions `{{#*inline "x"}}` | Needed for reusable partial-heavy codebases. |
 | release-blocker | Covered | Root-level plain-text templates with mustaches | Must not turn `Hello, {{name}}!` into different rendered text. |
 | release-blocker | Covered | `script` / `style` content containing closing tags in strings | Raw-text parsing skips quoted closing-tag lookalikes. |
@@ -44,6 +45,7 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 | high | Covered | Partials with multiline hash values | `{{> card data=(parseJSON "...") }}` |
 | high | Covered | Dynamic partial names | `{{> (lookup . "partialName") }}` |
 | high | Covered | Block partials | `{{#> layout}}...{{/layout}}` |
+| high | Covered | Mustache parent templates and blocks | `{{< layout}}{{$title}}...{{/title}}{{/layout}}` |
 | high | Covered | Inline partial definitions | `{{#*inline "card"}}...{{/inline}}` |
 | high | Covered | Raw blocks | `{{{{raw}}}} {{value}} {{{{/raw}}}}` |
 | high | Covered | Whitespace control on inline expressions | `{{~ value ~}}` |
@@ -54,6 +56,7 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 | medium | Covered | Triple-stash in mixed HTML contexts | `{{{ html }}}` |
 | medium | Covered | `else if` style constructs | `{{else if cond}}` |
 | medium | Covered | Decorators and decorator blocks | `{{*log value}}`, `{{#*decorate}}...{{/decorate}}`, and inline partial definitions. |
+| medium | Covered | Dynamic Mustache parent names | `{{<*dynamic}}...{{/*dynamic}}` |
 
 ## HTML Interop
 
@@ -85,6 +88,7 @@ For every serious formatter release, we should hold it to a stricter bar than "f
 | high | Covered | Broken interleaving of HTML and Handlebars | opening tag inside unmatched block branch |
 | medium | Covered | HTML comments containing `{{` and `}}` | `<!-- {{ not a token }} -->` |
 | medium | Covered | Recovery from invalid block-partial syntax | `{{#> layout}}` without close |
+| medium | Covered | Recovery from invalid Mustache parent syntax | `{{< layout}}` without close |
 
 ## Stability and Open-Source Quality
 

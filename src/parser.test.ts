@@ -263,6 +263,100 @@ describe('Mustache in HTML attributes', () => {
 });
 
 describe('Mustache blocks in children', () => {
+  it('parses mustache parents and overridable blocks', () => {
+    const input = `
+      {{< layout}}
+        {{$title}}Hello{{/title}}
+      {{/layout}}
+    `;
+
+    const output = parse(input);
+    const parent = output.body.find(
+      child =>
+        child.type === 'BlockStatement' &&
+        child.path === 'layout'
+    ) as any;
+
+    expect(parent).toMatchObject({
+      type: 'BlockStatement',
+      path: 'layout',
+      blockPrefix: '<'
+    });
+
+    expect(parent.program.body[0]).toMatchObject({
+      type: 'BlockStatement',
+      path: 'title',
+      blockPrefix: '$',
+      program: expect.objectContaining({
+        type: 'Program',
+        body: [
+          expect.objectContaining({
+            type: 'TextNode',
+            value: 'Hello'
+          })
+        ]
+      })
+    });
+  });
+
+  it('parses mustache parent paths with slash-separated names and spaced closing tags', () => {
+    const input = `
+      {{< theme_boost/drawer}}
+        {{$drawercontent}}{{{content}}}{{/drawercontent}}
+      {{/ theme_boost/drawer}}
+    `;
+
+    const output = parse(input);
+    const parent = output.body.find(
+      child =>
+        child.type === 'BlockStatement' &&
+        child.path === 'theme_boost/drawer'
+    ) as any;
+
+    expect(parent).toMatchObject({
+      type: 'BlockStatement',
+      path: 'theme_boost/drawer',
+      blockPrefix: '<'
+    });
+
+    expect(parent.program.body[0]).toMatchObject({
+      type: 'BlockStatement',
+      path: 'drawercontent',
+      blockPrefix: '$',
+      program: expect.objectContaining({
+        body: [
+          expect.objectContaining({
+            type: 'MustacheStatement',
+            path: 'content',
+            triple: true
+          })
+        ]
+      })
+    });
+  });
+
+  it('parses dynamic mustache parent names', () => {
+    const input = `{{<*dynamic}}{{$text}}Hello{{/text}}{{/*dynamic}}`;
+
+    const output = parse(input);
+    const parent = output.body[0] as any;
+
+    expect(parent).toMatchObject({
+      type: 'BlockStatement',
+      path: '*dynamic',
+      blockPrefix: '<',
+      program: expect.objectContaining({
+        body: [
+          expect.objectContaining({
+            type: 'BlockStatement',
+            path: 'text',
+            blockPrefix: '$'
+          })
+        ]
+      })
+    });
+  });
+
   it('if block as content', () => {
     const input = `
       <div>
