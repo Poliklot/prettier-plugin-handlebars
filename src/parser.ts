@@ -15,8 +15,10 @@ import {
 } from './types';
 import { voidElements, rawTextElements, whitespaceSensitiveRawTextElements } from './core/html/tags';
 import { locEnd, locStart, normalizeInput, withOptionalRange, withRange } from './core/source';
-import { isTemplateExpressionQuoteStart, parseTemplateExpression } from './core/template/expression';
+import { parseTemplateExpression } from './core/template/expression';
+import type { TemplateToken as MustacheToken } from './core/template/dialect';
 import { whitespace } from './core/text/whitespace';
+import { handlebarsDialect } from './dialects/handlebars/tokens';
 
 export { locEnd, locStart };
 
@@ -27,10 +29,32 @@ interface ParseResult {
   endToken?: MustacheToken;
 }
 
+const templateDialect = handlebarsDialect;
+
 export function parse(text: string): Program {
   const normalizedText = normalizeInput(text);
   const { nodes } = parseChildren(normalizedText, 0, null, null);
   return withRange({ type: 'Program', body: nodes }, 0, normalizedText.length);
+}
+
+function startsTemplateTag(text: string, position: number): boolean {
+  return text.startsWith(templateDialect.openDelimiter, position) && !templateDialect.isEscapedOpen(text, position);
+}
+
+function parseMustacheToken(text: string, position: number): MustacheToken {
+  return templateDialect.parseToken(text, position);
+}
+
+function findNextHandlebarsOpen(text: string, position: number): number {
+  return templateDialect.findNextOpen(text, position);
+}
+
+function isDynamicTagStart(text: string, position: number): boolean {
+  return templateDialect.isDynamicElementStart(text, position);
+}
+
+function consumeRawBlock(text: string, position: number): number | null {
+  return templateDialect.consumeRawBlock(text, position);
 }
 
 function parseChildren(
@@ -90,7 +114,7 @@ function parseChildren(
       return { nodes, position: pos, endReason: 'tagClose' };
     }
 
-    if (text.startsWith('{{', pos) && !isEscapedHandlebarsOpen(text, pos)) {
+    if (startsTemplateTag(text, pos)) {
       const token = parseMustacheToken(text, pos);
 
       if (shouldPreserveMustacheVerbatim(token) && !(endBlock && token.kind === 'else')) {
@@ -500,39 +524,15 @@ function parseBlock(
 }
 
 function getBlockExpression(token: MustacheToken): string {
-  if (token.specialForm === 'blockPartial' || token.specialForm === 'decoratorBlock') {
-    return token.content.slice(2).trim();
-  }
-
-  return token.content.slice(1).trim();
+  return templateDialect.getBlockExpression(token);
 }
 
 function getBlockPrefix(token: MustacheToken): '#' | '#>' | '#*' | '^' | '<' | '$' {
-  if (token.specialForm === 'blockPartial') {
-    return '#>';
-  }
-
-  if (token.specialForm === 'decoratorBlock') {
-    return '#*';
-  }
-
-  if (token.specialForm === 'inverseBlock') {
-    return '^';
-  }
-
-  if (token.specialForm === 'parent') {
-    return '<';
-  }
-
-  if (token.specialForm === 'mustacheBlock') {
-    return '$';
-  }
-
-  return '#';
+  return templateDialect.getBlockPrefix(token);
 }
 
 function shouldPreserveUnclosedBlockRemainder(token: MustacheToken): boolean {
-  return token.specialForm === 'blockPartial' || token.specialForm === 'parent';
+  return templateDialect.shouldPreserveUnclosedBlockRemainder(token);
 }
 
 function hasMatchingTagEnd(text: string, tag: string, start: number, limit = -1): boolean {
@@ -610,7 +610,7 @@ function consumeNextNode(text: string, position: number): number {
     return position;
   }
 
-  if (text.startsWith('{{', position) && !isEscapedHandlebarsOpen(text, position)) {
+  if (startsTemplateTag(text, position)) {
     const token = parseMustacheToken(text, position);
 
     if (token.kind === 'blockStart') {
@@ -649,146 +649,6 @@ function createUnmatchedNode(text: string, start: number, end: number): Unmatche
   return withRange({ type: 'UnmatchedNode', raw: text.slice(start, end) }, start, end);
 }
 
-type MustacheTokenKind = 'blockStart' | 'blockEnd' | 'partial' | 'comment' | 'mustache' | 'else';
-
-interface MustacheToken {
-  kind: MustacheTokenKind;
-  content: string;
-  rawContent: string;
-  start: number;
-  end: number;
-  triple: boolean;
-  name?: string;
-  rawInner: string;
-  trimOpen: boolean;
-  trimClose: boolean;
-  specialForm?: 'blockPartial' | 'decoratorBlock' | 'decorator' | 'elseIf' | 'inverseBlock' | 'parent' | 'mustacheBlock';
-}
-
-function parseMustacheToken(text: string, position: number): MustacheToken {
-  const triple = text.startsWith('{{{', position);
-  const openLength = triple ? 3 : 2;
-  const isBlockComment = text.startsWith('{{!--', position) || text.startsWith('{{{!--', position);
-  const close = triple ? '}}}' : '}}';
-  const closeDelimiter = isBlockComment ? `--${close}` : close;
-  const closeIdx = isBlockComment
-    ? text.indexOf(closeDelimiter, position + openLength)
-    : findMustacheClose(text, position + openLength, closeDelimiter);
-  const end = closeIdx >= 0 ? closeIdx + closeDelimiter.length : text.length;
-  const rawContent = text.slice(position + openLength, closeIdx >= 0 ? closeIdx : undefined);
-  const rawInner = rawContent.trim();
-  const trimOpen = rawInner.startsWith('~');
-  const trimClose = rawInner.endsWith('~');
-  const inner = rawInner.replace(/^~/, '').replace(/~$/, '').trim();
-
-  const baseToken = {
-    rawContent,
-    rawInner,
-    start: position,
-    end,
-    triple,
-    trimOpen,
-    trimClose,
-  };
-
-  if (inner.startsWith('!')) {
-    return { kind: 'comment', content: inner, name: undefined, ...baseToken };
-  }
-
-  if (inner.startsWith('>')) {
-    return { kind: 'partial', content: inner.slice(1).trim(), name: undefined, ...baseToken };
-  }
-
-  if (inner.startsWith('<')) {
-    const name = inner.slice(1).trim().split(/\s+/)[0];
-    return { kind: 'blockStart', content: inner, name, specialForm: 'parent', ...baseToken };
-  }
-
-  if (inner.startsWith('#>')) {
-    const name = inner.slice(2).trim().split(/\s+/)[0];
-    return { kind: 'blockStart', content: inner, name, specialForm: 'blockPartial', ...baseToken };
-  }
-
-  if (inner.startsWith('#*')) {
-    const name = inner.slice(2).trim().split(/\s+/)[0];
-    return { kind: 'blockStart', content: inner, name, specialForm: 'decoratorBlock', ...baseToken };
-  }
-
-  if (inner.startsWith('*')) {
-    return { kind: 'mustache', content: inner, name: undefined, specialForm: 'decorator', ...baseToken };
-  }
-
-  if (inner.startsWith('#')) {
-    const name = inner.slice(1).trim().split(/\s+/)[0];
-    return { kind: 'blockStart', content: inner, name, ...baseToken };
-  }
-
-  if (inner.startsWith('^')) {
-    const name = inner.slice(1).trim().split(/\s+/)[0];
-    return { kind: 'blockStart', content: inner, name, specialForm: 'inverseBlock', ...baseToken };
-  }
-
-  if (inner.startsWith('$')) {
-    const name = inner.slice(1).trim().split(/\s+/)[0];
-    return { kind: 'blockStart', content: inner, name, specialForm: 'mustacheBlock', ...baseToken };
-  }
-
-  if (inner.startsWith('/')) {
-    const name = inner.slice(1).trim();
-    return { kind: 'blockEnd', content: inner, name, ...baseToken };
-  }
-
-  if (inner === 'else' || inner.startsWith('else ')) {
-    return {
-      kind: 'else',
-      content: inner,
-      name: 'else',
-      specialForm: inner === 'else' ? undefined : 'elseIf',
-      ...baseToken,
-    };
-  }
-
-  return { kind: 'mustache', content: inner, name: undefined, ...baseToken };
-}
-
-function findMustacheClose(text: string, position: number, closeDelimiter: string): number {
-  let quote: '"' | "'" | '`' | null = null;
-  let escaped = false;
-
-  for (let index = position; index < text.length; index += 1) {
-    const char = text[index];
-
-    if (quote) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-
-      if (char === '\\') {
-        escaped = true;
-        continue;
-      }
-
-      if (char === quote) {
-        quote = null;
-      }
-
-      continue;
-    }
-
-    if ((char === '"' || char === "'" || char === '`') && isTemplateExpressionQuoteStart(text, index, position)) {
-      quote = char;
-      continue;
-    }
-
-    if (text.startsWith(closeDelimiter, index)) {
-      return index;
-    }
-  }
-
-  return -1;
-}
-
 function parseTag(text: string, position: number):
   | { kind: 'open'; tag: string; attributes: ElementAttribute[]; end: number }
   | { kind: 'selfClosing'; tag: string; attributes: ElementAttribute[]; end: number }
@@ -816,7 +676,7 @@ function parseTag(text: string, position: number):
       continue;
     }
 
-    if (text.startsWith('{{', pos) && !isEscapedHandlebarsOpen(text, pos)) {
+    if (startsTemplateTag(text, pos)) {
       const token = parseMustacheToken(text, pos);
 
       // комментарий в голове тега
@@ -942,10 +802,6 @@ function isTagStart(text: string, position: number): boolean {
   return /[A-Za-z!/]/.test(next ?? '') || next === '/';
 }
 
-function isDynamicTagStart(text: string, position: number): boolean {
-  return text.startsWith('<{{', position) || text.startsWith('</{{', position);
-}
-
 function parseAttribute(text: string, position: number): { attribute: ElementAttribute; position: number } | null {
   let pos = position;
   skipWhitespace(text, () => pos++, () => pos);
@@ -980,7 +836,7 @@ function parseAttribute(text: string, position: number): { attribute: ElementAtt
     const start = pos;
     valueStart = start;
     while (pos < text.length && text[pos] !== '>') {
-      if (text.startsWith('{{', pos) && !isEscapedHandlebarsOpen(text, pos)) {
+      if (startsTemplateTag(text, pos)) {
         const token = parseMustacheToken(text, pos);
         pos = token.end;
         continue;
@@ -1022,7 +878,7 @@ function parseDynamicAttribute(
   let hasStaticPart = false;
 
   while (pos < text.length) {
-    if (text.startsWith('{{', pos) && !isEscapedHandlebarsOpen(text, pos)) {
+    if (startsTemplateTag(text, pos)) {
       const token = parseMustacheToken(text, pos);
 
       if (token.kind !== 'mustache') {
@@ -1075,7 +931,7 @@ function parseDynamicAttribute(
         break;
       }
 
-      if (text.startsWith('{{', pos) && !isEscapedHandlebarsOpen(text, pos)) {
+      if (startsTemplateTag(text, pos)) {
         const token = parseMustacheToken(text, pos);
         pos = token.end;
         continue;
@@ -1187,7 +1043,7 @@ function parseAttributeValueParts(
   let pos = 0;
 
   while (pos < value.length) {
-    if (value.startsWith('{{', pos) && !isEscapedHandlebarsOpen(value, pos)) {
+    if (startsTemplateTag(value, pos)) {
       const token = parseMustacheToken(value, pos);
 
       // комментарий
@@ -1282,7 +1138,7 @@ function readQuotedAttributeValue(
   let pos = position;
 
   while (pos < text.length) {
-    if (text.startsWith('{{', pos) && !isEscapedHandlebarsOpen(text, pos)) {
+    if (startsTemplateTag(text, pos)) {
       const token = parseMustacheToken(text, pos);
       pos = token.end > pos ? token.end : pos + 2;
       continue;
@@ -1310,38 +1166,6 @@ function readName(text: string, position: number): { value: string; next: number
     pos += 1;
   }
   return { value: text.slice(position, pos), next: pos };
-}
-
-function isEscapedHandlebarsOpen(text: string, position: number): boolean {
-  if (!text.startsWith('{{', position)) {
-    return false;
-  }
-
-  let slashCount = 0;
-  for (let index = position - 1; index >= 0 && text[index] === '\\'; index -= 1) {
-    slashCount += 1;
-  }
-
-  return slashCount % 2 === 1;
-}
-
-function findNextHandlebarsOpen(text: string, position: number): number {
-  let searchPos = position;
-
-  while (searchPos < text.length) {
-    const candidate = text.indexOf('{{', searchPos);
-    if (candidate === -1) {
-      return -1;
-    }
-
-    if (!isEscapedHandlebarsOpen(text, candidate)) {
-      return candidate;
-    }
-
-    searchPos = candidate + 2;
-  }
-
-  return -1;
 }
 
 function isSelfClosingSlash(text: string, position: number): boolean {
@@ -1490,7 +1314,7 @@ function findMatchingTagClose(text: string, tag: string, position: number, limit
 }
 
 function shouldPreserveMustacheVerbatim(token: MustacheToken): boolean {
-  return token.specialForm === 'elseIf';
+  return templateDialect.shouldPreserveTokenVerbatim(token);
 }
 
 function consumeUnsupportedBlock(text: string, position: number, openToken: MustacheToken): number {
@@ -1522,33 +1346,6 @@ function consumeUnsupportedBlock(text: string, position: number, openToken: Must
   }
 
   return text.length;
-}
-
-function consumeRawBlock(text: string, position: number): number | null {
-  if (!text.startsWith('{{{{', position)) {
-    return null;
-  }
-
-  const openIdx = text.indexOf('}}}}', position + 4);
-  if (openIdx === -1) {
-    return text.length;
-  }
-
-  const openInner = text.slice(position + 4, openIdx).trim().replace(/^~/, '').replace(/~$/, '').trim();
-  if (!openInner || openInner.startsWith('/')) {
-    return null;
-  }
-
-  const name = openInner.split(/\s+/)[0];
-  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const closePattern = new RegExp(`{{{{\\s*~?\\/\\s*${escapedName}\\s*~?\\s*}}}}`);
-  const closeMatch = closePattern.exec(text.slice(openIdx + 4));
-
-  if (!closeMatch) {
-    return text.length;
-  }
-
-  return openIdx + 4 + closeMatch.index + closeMatch[0].length;
 }
 
 function findRawTextClose(text: string, position: number, tag: string): number {
@@ -1638,7 +1435,10 @@ function consumeDynamicElement(text: string, position: number): number | null {
     return null;
   }
 
-  if (text.startsWith('</{{', position)) {
+  const dynamicOpen = `<${templateDialect.openDelimiter}`;
+  const dynamicClose = `</${templateDialect.openDelimiter}`;
+
+  if (text.startsWith(dynamicClose, position)) {
     return consumeTagLikeChunk(text, position);
   }
 
@@ -1647,8 +1447,8 @@ function consumeDynamicElement(text: string, position: number): number | null {
   let pos = openEnd;
 
   while (pos < text.length) {
-    const nextOpen = text.indexOf('<{{', pos);
-    const nextClose = text.indexOf('</{{', pos);
+    const nextOpen = text.indexOf(dynamicOpen, pos);
+    const nextClose = text.indexOf(dynamicClose, pos);
     const candidates = [nextOpen, nextClose].filter((value) => value !== -1);
     const next = candidates.length > 0 ? Math.min(...candidates) : -1;
 

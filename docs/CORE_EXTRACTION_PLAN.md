@@ -10,17 +10,23 @@ This repository remains the source of truth for the first extraction phase. The 
    - Keep Handlebars-specific parsing and printing behavior in the current plugin.
    - Require the existing Handlebars tests, semantic render checks, and fuzz checks to stay green.
 
-2. **External core package**
+2. **Internal dialect boundary**
+   - Define dialect contracts in `src/core/template/*`.
+   - Move Handlebars token scanning and token classification into `src/dialects/handlebars/*`.
+   - Make the parser call the dialect for delimiter-aware scanning, raw-block handling, block expressions, and block prefixes.
+   - Keep the AST and formatter output unchanged while making room for a Mustache dialect.
+
+3. **External core package**
    - Move stable `src/core/*` modules into a separate repository/package.
    - Keep the package name dialect-neutral.
    - Do not publish a Mustache plugin until the Handlebars plugin can consume the extracted core.
 
-3. **Rebuild Handlebars on the extracted core**
+4. **Rebuild Handlebars on the extracted core**
    - Replace local core imports with the external core package.
    - Preserve the current `.hbs` / `.handlebars` behavior.
    - Add compatibility tests to prove the package boundary did not change formatting.
 
-4. **Build `prettier-plugin-mustache`**
+5. **Build `prettier-plugin-mustache`**
    - Use the extracted core.
    - Add Mustache-specific dialect rules separately from Handlebars rules.
    - Start with `.mustache` support only after the core package is proven by Handlebars.

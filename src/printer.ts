@@ -23,11 +23,13 @@ import {
   whitespaceSensitiveRawTextElements as whitespaceSensitiveRawTextTags,
 } from './core/html/tags';
 import { normalizeInlineText, stripCommonIndent, trimSurroundingBlankLines } from './core/text/whitespace';
+import { handlebarsDialect } from './dialects/handlebars/tokens';
 
 const { hardline, join, group, indent, align, line, softline, ifBreak, lineSuffix, lineSuffixBoundary } = builders;
 const { stripTrailingHardline, willBreak } = utils;
 const mapDoc = (utils as unknown as { mapDoc: (doc: Doc, cb: (doc: Doc) => Doc) => Doc }).mapDoc;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
+const templateDialect = handlebarsDialect;
 type PrintableExpression = MustacheStatement | BlockStatement | ElseBranch | PartialStatement | DecoratorStatement;
 type CallableStatement = MustacheStatement | DecoratorStatement;
 
@@ -2114,11 +2116,7 @@ function printBlockOpen(node: BlockStatement): Doc {
 }
 
 function getPrintedBlockPrefix(prefix: ReturnType<typeof getBlockPrefix>): string {
-  if (prefix === '#>' || prefix === '<') {
-    return `${prefix} `;
-  }
-
-  return prefix;
+  return templateDialect.getPrintedBlockPrefix(prefix);
 }
 
 function printExpressionTag(openParts: Doc[], expression: string, node: BlockStatement | ElseBranch): Doc {
