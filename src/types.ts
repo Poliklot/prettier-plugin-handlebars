@@ -1,3 +1,7 @@
+import type { SourceRange } from './core/source';
+
+export type { SourceRange } from './core/source';
+
 export type Node =
   | Program
   | ElementNode
@@ -8,10 +12,6 @@ export type Node =
   | DecoratorStatement
   | CommentStatement
   | UnmatchedNode;
-
-export interface SourceRange {
-  range?: [number, number];
-}
 
 export interface Program extends SourceRange {
   type: 'Program';

@@ -16,30 +16,18 @@ import {
   TextNode,
   UnmatchedNode,
 } from './types';
+import {
+  inlineContentElements,
+  trimmableRawTextElements as trimmableRawTextTags,
+  voidElements as voidTags,
+  whitespaceSensitiveRawTextElements as whitespaceSensitiveRawTextTags,
+} from './core/html/tags';
+import { normalizeInlineText, stripCommonIndent, trimSurroundingBlankLines } from './core/text/whitespace';
 
 const { hardline, join, group, indent, align, line, softline, ifBreak, lineSuffix, lineSuffixBoundary } = builders;
 const { stripTrailingHardline, willBreak } = utils;
 const mapDoc = (utils as unknown as { mapDoc: (doc: Doc, cb: (doc: Doc) => Doc) => Doc }).mapDoc;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
-const whitespaceSensitiveRawTextTags = new Set(['pre', 'textarea']);
-const trimmableRawTextTags = new Set(['script', 'style']);
-const voidTags = new Set([
-  'area',
-  'base',
-  'br',
-  'col',
-  'embed',
-  'hr',
-  'img',
-  'input',
-  'keygen',
-  'link',
-  'meta',
-  'param',
-  'source',
-  'track',
-  'wbr',
-]);
 type PrintableExpression = MustacheStatement | BlockStatement | ElseBranch | PartialStatement | DecoratorStatement;
 type CallableStatement = MustacheStatement | DecoratorStatement;
 
@@ -95,10 +83,6 @@ function docBreaks(doc: Doc): boolean {
   }
 
   return docHasHardline(doc) || willBreak(doc);
-}
-
-function normalizeInlineText(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
 }
 
 function getTrimOpen(node: PrintableExpression): string {
@@ -923,39 +907,6 @@ function getIndentUnit(options: ParserOptions): string {
   return useTabs ? '\t' : ' '.repeat(tabWidth);
 }
 
-function trimSurroundingBlankLines(lines: string[]): string[] {
-  const trimmedLines = lines.slice();
-
-  while (trimmedLines.length > 0 && trimmedLines[0].trim() === '') {
-    trimmedLines.shift();
-  }
-
-  while (trimmedLines.length > 0 && trimmedLines[trimmedLines.length - 1].trim() === '') {
-    trimmedLines.pop();
-  }
-
-  return trimmedLines;
-}
-
-function stripCommonIndent(lines: string[], startIndex = 0): string[] {
-  const indentLines = lines.slice(startIndex).filter((line) => line.trim().length > 0);
-  const commonIndent = indentLines.reduce((min, line) => {
-    const indentLength = (line.match(/^[ \t]*/) || [''])[0].length;
-    return Math.min(min, indentLength);
-  }, Number.MAX_SAFE_INTEGER);
-
-  const normalizedIndent = Number.isFinite(commonIndent) ? commonIndent : 0;
-
-  return lines.map((line, index) => {
-    if (index < startIndex || line.trim() === '') {
-      return line.replace(/[ \t]+$/, '');
-    }
-
-    const indentLength = (line.match(/^[ \t]*/) || [''])[0].length;
-    return line.slice(Math.min(indentLength, normalizedIndent)).replace(/[ \t]+$/, '');
-  });
-}
-
 function splitMultilineExpression(content: string): string[] | null {
   if (!content.includes('\n')) {
     return null;
@@ -1726,26 +1677,7 @@ function shouldPreserveSimpleInlineText(node: ElementNode, childrenDocs: Doc[], 
 }
 
 function isInlineContentTag(tag: string): boolean {
-  return new Set([
-    'a',
-    'abbr',
-    'b',
-    'bdi',
-    'bdo',
-    'button',
-    'cite',
-    'code',
-    'em',
-    'i',
-    'label',
-    'p',
-    'small',
-    'span',
-    'strong',
-    'sub',
-    'sup',
-    'time',
-  ]).has(tag.toLowerCase());
+  return inlineContentElements.has(tag.toLowerCase());
 }
 
 function isInlineContentChild(node: Node): boolean {
