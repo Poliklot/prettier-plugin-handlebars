@@ -25,6 +25,20 @@ export interface TemplateToken {
   specialForm?: TemplateTokenSpecialForm;
 }
 
+export interface TemplateTagDelimiters {
+  open: string;
+  close: string;
+}
+
+export interface TemplateBlockCommentMarkers {
+  blockOpen: string;
+  blockClose: string;
+  inlineOpen: string;
+  inlineClose: string;
+  emptyBlock: string;
+  emptyInline: string;
+}
+
 export interface TemplateDialect {
   name: string;
   openDelimiter: string;
@@ -36,7 +50,15 @@ export interface TemplateDialect {
   consumeRawBlock(text: string, position: number): number | null;
   getBlockExpression(token: TemplateToken): string;
   getBlockPrefix(token: TemplateToken): TemplateBlockPrefix;
+  getTagDelimiters(triple: boolean): TemplateTagDelimiters;
   getPrintedBlockPrefix(prefix: TemplateBlockPrefix): string;
+  getPartialPrefix(): string;
+  getDecoratorPrefix(): string;
+  getElseKeyword(): string;
+  getBlockClosePrefix(path: string): string;
+  getLineCommentTag(value: string): string;
+  getBlockCommentTag(value: string): string;
+  getBlockCommentMarkers(): TemplateBlockCommentMarkers;
   shouldPreserveTokenVerbatim(token: TemplateToken): boolean;
   shouldPreserveUnclosedBlockRemainder(token: TemplateToken): boolean;
 }

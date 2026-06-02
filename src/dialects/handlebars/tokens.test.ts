@@ -60,4 +60,22 @@ describe('handlebars dialect tokens', () => {
     expect(handlebarsDialect.getBlockPrefix(parent)).toBe('<');
     expect(handlebarsDialect.getPrintedBlockPrefix('<')).toBe('< ');
   });
+
+  it('keeps Handlebars print syntax in the dialect', () => {
+    expect(handlebarsDialect.getTagDelimiters(false)).toEqual({ open: '{{', close: '}}' });
+    expect(handlebarsDialect.getTagDelimiters(true)).toEqual({ open: '{{{', close: '}}}' });
+    expect(handlebarsDialect.getPartialPrefix()).toBe('> ');
+    expect(handlebarsDialect.getDecoratorPrefix()).toBe('*');
+    expect(handlebarsDialect.getElseKeyword()).toBe('else');
+    expect(handlebarsDialect.getBlockClosePrefix('if')).toBe('/if');
+    expect(handlebarsDialect.getLineCommentTag('hello')).toBe('{{! hello}}');
+    expect(handlebarsDialect.getLineCommentTag('<tag>')).toBe('{{!<tag>}}');
+    expect(handlebarsDialect.getBlockCommentTag('hello')).toBe('{{!-- hello --}}');
+    expect(handlebarsDialect.getBlockCommentMarkers()).toMatchObject({
+      blockOpen: '{{!--',
+      blockClose: '--}}',
+      inlineOpen: '{{!-- ',
+      inlineClose: ' --}}',
+    });
+  });
 });

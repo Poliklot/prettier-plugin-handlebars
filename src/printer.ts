@@ -95,6 +95,15 @@ function getTrimClose(node: PrintableExpression): string {
   return node.trimClose ? '~' : '';
 }
 
+function getTemplateTagDelimiters(triple = false): { open: string; close: string } {
+  return templateDialect.getTagDelimiters(triple);
+}
+
+function buildTemplateTag(content: string, trimOpen = '', trimClose = '', triple = false): string {
+  const { open, close } = getTemplateTagDelimiters(triple);
+  return `${open}${trimOpen}${content}${trimClose}${close}`;
+}
+
 function isSimpleValueMustache(node: MustacheStatement): boolean {
   return node.params.length === 0 && node.hash.length === 0 && (!node.blockParams || node.blockParams.length === 0);
 }
@@ -325,15 +334,15 @@ function printCommentStatement(node: CommentStatement, options: ParserOptions): 
   }
 
   if (!node.block && node.value.startsWith('<')) {
-    return concat(['{{!', node.value, '}}']);
+    return templateDialect.getLineCommentTag(node.value);
   }
 
   if (node.block) {
     const trimmedValue = typeof node.value === 'string' ? node.value.replace(/[ \t]+$/gm, '') : node.value;
-    return concat(['{{!-- ', trimmedValue, ' --}}']);
+    return templateDialect.getBlockCommentTag(trimmedValue);
   }
 
-  return concat(['{{! ', node.value, '}}']);
+  return templateDialect.getLineCommentTag(node.value);
 }
 
 function formatVerbatimText(content: string): Doc {
@@ -1230,7 +1239,8 @@ function printAttributeBlock(block: BlockStatement): Doc {
 
   if (block.inverse.body.length > 0) {
     const inverseLines = formatAttributeBlockBody(stringifyNode(block.inverse as Program));
-    inverseParts.push(concat(['{{else}}', indent(concat([hardline, join(hardline, inverseLines)])), hardline]));
+    const elseTag = buildTemplateTag(templateDialect.getElseKeyword());
+    inverseParts.push(concat([elseTag, indent(concat([hardline, join(hardline, inverseLines)])), hardline]));
   }
 
   const inverse = inverseParts.length > 0 ? concat(inverseParts) : '';
@@ -1281,8 +1291,14 @@ function stringifyCompactClassNode(node: Node): string {
       return stringifyMustache(node as MustacheStatement);
     case 'DecoratorStatement':
       return stringifyDecorator(node as DecoratorStatement);
-    case 'PartialStatement':
-      return `{{${getTrimOpen(node as PartialStatement)}> ${buildExpression(node as PartialStatement)}${getTrimClose(node as PartialStatement)}}}`;
+    case 'PartialStatement': {
+      const partial = node as PartialStatement;
+      return buildTemplateTag(
+        `${templateDialect.getPartialPrefix()}${buildExpression(partial)}`,
+        getTrimOpen(partial),
+        getTrimClose(partial),
+      );
+    }
     case 'BlockStatement':
       return stringifyCompactClassBlock(node as BlockStatement);
     case 'CommentStatement':
@@ -1314,19 +1330,36 @@ function stringifyCompactClassBlock(block: BlockStatement): string {
   const prefix = getBlockPrefix(block);
   const printedPrefix = getPrintedBlockPrefix(prefix);
   const expression = buildExpression(block);
-  const open = `{{${getTrimOpen(block)}${printedPrefix}${expression}${getTrimClosePadding(block, expression)}${getTrimClose(block)}}}`;
+  const open = buildTemplateTag(
+    `${printedPrefix}${expression}${getTrimClosePadding(block, expression)}`,
+    getTrimOpen(block),
+    getTrimClose(block),
+  );
   const program = blockProgramToCompactClassValue(block.program as Program);
   const inverseChain = (block.inverseChain ?? [])
     .map((branch) => {
       const branchExpression = buildExpression(branch);
-      return `{{${getTrimOpen(branch)}else ${branchExpression}${getTrimClosePadding(branch, branchExpression)}${getTrimClose(branch)}}}${blockProgramToCompactClassValue(branch.program as Program)}`;
+      const openBranch = buildTemplateTag(
+        `${templateDialect.getElseKeyword()} ${branchExpression}${getTrimClosePadding(branch, branchExpression)}`,
+        getTrimOpen(branch),
+        getTrimClose(branch),
+      );
+      return `${openBranch}${blockProgramToCompactClassValue(branch.program as Program)}`;
     })
     .join('');
   const inverse =
     block.inverse.body.length > 0
-      ? `{{${block.inverseTrimOpen ? '~' : ''}else${block.inverseTrimClose ? '~' : ''}}}${blockProgramToCompactClassValue(block.inverse as Program)}`
+      ? `${buildTemplateTag(
+          templateDialect.getElseKeyword(),
+          block.inverseTrimOpen ? '~' : '',
+          block.inverseTrimClose ? '~' : '',
+        )}${blockProgramToCompactClassValue(block.inverse as Program)}`
       : '';
-  const close = `{{${block.closeTrimOpen ? '~' : ''}/${block.path}${block.closeTrimClose ? '~' : ''}}}`;
+  const close = buildTemplateTag(
+    templateDialect.getBlockClosePrefix(block.path),
+    block.closeTrimOpen ? '~' : '',
+    block.closeTrimClose ? '~' : '',
+  );
 
   return `${open}${program}${inverseChain}${inverse}${close}`;
 }
@@ -1766,35 +1799,53 @@ function stringifyNode(node: Node): string {
     }
     case 'PartialStatement': {
       const partial = node as PartialStatement;
-      return `{{${getTrimOpen(partial)}> ${buildExpression(partial)}${getTrimClose(partial)}}}`;
+      return buildTemplateTag(
+        `${templateDialect.getPartialPrefix()}${buildExpression(partial)}`,
+        getTrimOpen(partial),
+        getTrimClose(partial),
+      );
     }
     case 'CommentStatement': {
       const comment = node as CommentStatement;
       if (comment.block || comment.multiline) {
-        return `{{!-- ${comment.value} --}}`;
+        return templateDialect.getBlockCommentTag(comment.value);
       }
-      if (comment.value.startsWith('<')) {
-        return `{{!${comment.value}}}`;
-      }
-      return `{{! ${comment.value}}}`;
+      return templateDialect.getLineCommentTag(comment.value);
     }
     case 'BlockStatement': {
       const block = node as BlockStatement;
       const prefix = getBlockPrefix(block);
       const printedPrefix = getPrintedBlockPrefix(prefix);
       const expression = buildExpression(block);
-      const open = `{{${getTrimOpen(block)}${printedPrefix}${expression}${getTrimClosePadding(block, expression)}${getTrimClose(block)}}}`;
+      const open = buildTemplateTag(
+        `${printedPrefix}${expression}${getTrimClosePadding(block, expression)}`,
+        getTrimOpen(block),
+        getTrimClose(block),
+      );
       const program = stringifyInlineChildren(block.program.body as Node[]);
       const inverseChain = (block.inverseChain ?? [])
         .map((branch) => {
           const branchExpression = buildExpression(branch);
-          return `{{${getTrimOpen(branch)}else ${branchExpression}${getTrimClosePadding(branch, branchExpression)}${getTrimClose(branch)}}}${stringifyInlineChildren(branch.program.body as Node[])}`;
+          const openBranch = buildTemplateTag(
+            `${templateDialect.getElseKeyword()} ${branchExpression}${getTrimClosePadding(branch, branchExpression)}`,
+            getTrimOpen(branch),
+            getTrimClose(branch),
+          );
+          return `${openBranch}${stringifyInlineChildren(branch.program.body as Node[])}`;
         })
         .join('');
       const inverse = block.inverse.body.length > 0
-        ? `{{${block.inverseTrimOpen ? '~' : ''}else${block.inverseTrimClose ? '~' : ''}}}${stringifyInlineChildren(block.inverse.body as Node[])}`
+        ? `${buildTemplateTag(
+            templateDialect.getElseKeyword(),
+            block.inverseTrimOpen ? '~' : '',
+            block.inverseTrimClose ? '~' : '',
+          )}${stringifyInlineChildren(block.inverse.body as Node[])}`
         : '';
-      const close = `{{${block.closeTrimOpen ? '~' : ''}/${block.path}${block.closeTrimClose ? '~' : ''}}}`;
+      const close = buildTemplateTag(
+        templateDialect.getBlockClosePrefix(block.path),
+        block.closeTrimOpen ? '~' : '',
+        block.closeTrimClose ? '~' : '',
+      );
       return `${open}${program}${inverseChain}${inverse}${close}`;
     }
     case 'ElementNode': {
@@ -1943,8 +1994,7 @@ function shouldExpandStaticClassValue(value: string, options: ParserOptions): bo
 }
 
 function stringifyMustache(node: MustacheStatement): string {
-  const open = node.triple ? '{{{' : '{{';
-  const close = node.triple ? '}}}' : '}}';
+  const { open, close } = getTemplateTagDelimiters(node.triple);
   const content = buildExpression(node);
 
   return `${open}${getTrimOpen(node)}${getMustacheOpenPadding(node, content)}${content}${getMustacheClosePadding(node, content)}${getTrimClose(node)}${close}`;
@@ -1952,7 +2002,11 @@ function stringifyMustache(node: MustacheStatement): string {
 
 function stringifyDecorator(node: DecoratorStatement): string {
   const content = buildExpression(node);
-  return `{{${getTrimOpen(node)}*${content}${getTrimClosePadding(node, content)}${getTrimClose(node)}}}`;
+  return buildTemplateTag(
+    `${templateDialect.getDecoratorPrefix()}${content}${getTrimClosePadding(node, content)}`,
+    getTrimOpen(node),
+    getTrimClose(node),
+  );
 }
 
 function shouldPrintCallableMultiline(
@@ -2006,8 +2060,7 @@ function printCallableStatement(node: CallableStatement, config: CallablePrintCo
 
 function printMustache(node: MustacheStatement, options: ParserOptions): Doc {
   const content = buildExpression(node);
-  const open = node.triple ? '{{{' : '{{';
-  const close = node.triple ? '}}}' : '}}';
+  const { open, close } = getTemplateTagDelimiters(node.triple);
 
   return printCallableStatement(node, {
     open,
@@ -2022,12 +2075,14 @@ function printMustache(node: MustacheStatement, options: ParserOptions): Doc {
 
 function printDecorator(node: DecoratorStatement, options: ParserOptions): Doc {
   const content = buildExpression(node);
+  const { open, close } = getTemplateTagDelimiters(false);
+  const decoratorPrefix = templateDialect.getDecoratorPrefix();
 
   return printCallableStatement(node, {
-    open: '{{',
-    close: '}}',
-    inlineContent: `*${content}`,
-    multilineHead: `*${node.path}`,
+    open,
+    close,
+    inlineContent: `${decoratorPrefix}${content}`,
+    multilineHead: `${decoratorPrefix}${node.path}`,
     closePadding: getTrimClosePadding(node, content),
     multiline: shouldPrintCallableMultiline(node, content, options, false),
   });
@@ -2112,54 +2167,68 @@ function printBlockOpen(node: BlockStatement): Doc {
   const prefix = getBlockPrefix(node);
   const printedPrefix = getPrintedBlockPrefix(prefix);
 
-  return printExpressionTag(['{{', getTrimOpen(node), printedPrefix], expression, node);
+  return printExpressionTag(printedPrefix, expression, node);
 }
 
 function getPrintedBlockPrefix(prefix: ReturnType<typeof getBlockPrefix>): string {
   return templateDialect.getPrintedBlockPrefix(prefix);
 }
 
-function printExpressionTag(openParts: Doc[], expression: string, node: BlockStatement | ElseBranch): Doc {
+function printExpressionTag(head: string, expression: string, node: BlockStatement | ElseBranch): Doc {
+  const { open, close } = getTemplateTagDelimiters(false);
   const multilineExpression = splitMultilineExpression(expression);
 
   if (multilineExpression) {
     return concat([
-      ...openParts,
+      open,
+      getTrimOpen(node),
+      head,
       multilineExpression[0],
       indent(concat([hardline, join(hardline, multilineExpression.slice(1))])),
       hardline,
       getTrimClose(node),
-      '}}',
+      close,
     ]);
   }
 
   return concat([
-    ...openParts,
+    open,
+    getTrimOpen(node),
+    head,
     expression,
     getTrimClosePadding(node, expression),
     getTrimClose(node),
-    '}}',
+    close,
   ]);
 }
 
 function printFinalElseOpen(node: BlockStatement): Doc {
-  return concat(['{{', node.inverseTrimOpen ? '~' : '', 'else', node.inverseTrimClose ? '~' : '', '}}']);
+  return buildTemplateTag(
+    templateDialect.getElseKeyword(),
+    node.inverseTrimOpen ? '~' : '',
+    node.inverseTrimClose ? '~' : '',
+  );
 }
 
 function printElseBranchOpen(node: ElseBranch): Doc {
   const expression = buildExpression(node);
 
-  return printExpressionTag(['{{', getTrimOpen(node), 'else '], expression, node);
+  return printExpressionTag(`${templateDialect.getElseKeyword()} `, expression, node);
 }
 
 function printBlockClose(node: BlockStatement): Doc {
-  return concat(['{{', node.closeTrimOpen ? '~' : '', '/', node.path, node.closeTrimClose ? '~' : '', '}}']);
+  return buildTemplateTag(
+    templateDialect.getBlockClosePrefix(node.path),
+    node.closeTrimOpen ? '~' : '',
+    node.closeTrimClose ? '~' : '',
+  );
 }
 
 function printPartial(node: PartialStatement, options: ParserOptions): Doc {
   const name = node.path;
-  const open = concat(['{{', getTrimOpen(node), '> ']);
-  const close = concat([getTrimClose(node), '}}']);
+  const { open: tagOpen, close: tagClose } = getTemplateTagDelimiters(false);
+  const open = concat([tagOpen, getTrimOpen(node), templateDialect.getPartialPrefix()]);
+  const close = concat([getTrimClose(node), tagClose]);
   if (node.params.length === 0 && node.hash.length === 0) {
     return concat([open, name, close]);
   }
@@ -2205,9 +2274,10 @@ function formatMultilineComment(content: string, options: ParserOptions, inlineM
   const hasStandaloneCloseMarker = inlineMarkers && /\n[ \t]*$/.test(content);
   const lines = trimSurroundingBlankLines(content.replace(/[ \t]+$/gm, '').split('\n'));
   const shouldInlineMarkup = !inlineMarkers && shouldFormatCommentAsInlineMarkup(lines);
+  const markers = templateDialect.getBlockCommentMarkers();
 
   if (lines.length === 0) {
-    return inlineMarkers ? '{{!--  --}}' : '{{!-- --}}';
+    return inlineMarkers ? markers.emptyInline : markers.emptyBlock;
   }
 
   if (inlineMarkers || shouldInlineMarkup) {
@@ -2217,8 +2287,8 @@ function formatMultilineComment(content: string, options: ParserOptions, inlineM
 
     if (restLines.length === 0) {
       return hasStandaloneCloseMarker
-        ? concat(['{{!-- ', first, hardline, '--}}'])
-        : concat(['{{!-- ', first, ' --}}']);
+        ? concat([markers.inlineOpen, first, hardline, markers.blockClose])
+        : concat([markers.inlineOpen, first, markers.inlineClose]);
     }
 
     const normalizedRest = normalizeInlineCommentLines(restLines, options).map((line) => {
@@ -2234,23 +2304,23 @@ function formatMultilineComment(content: string, options: ParserOptions, inlineM
 
     if (hasStandaloneCloseMarker) {
       return concat([
-        '{{!-- ',
+        markers.inlineOpen,
         first,
         hardline,
         leadingLines.length > 0 ? concat([join(hardline, leadingLines), hardline]) : '',
         lastLine,
         hardline,
-        '--}}',
+        markers.blockClose,
       ]);
     }
 
     return concat([
-      '{{!-- ',
+      markers.inlineOpen,
       first,
       hardline,
       leadingLines.length > 0 ? concat([join(hardline, leadingLines), hardline]) : '',
       lastLine,
-      ' --}}',
+      markers.inlineClose,
     ]);
   }
 
@@ -2265,11 +2335,11 @@ function formatMultilineComment(content: string, options: ParserOptions, inlineM
   const body = join(hardline, normalizedLines);
 
   return concat([
-    '{{!--',
+    markers.blockOpen,
     hardline,
     body,
     hardline,
-    '--}}',
+    markers.blockClose,
   ]);
 }
 

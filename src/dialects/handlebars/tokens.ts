@@ -12,7 +12,15 @@ export const handlebarsDialect: TemplateDialect = {
   consumeRawBlock: consumeHandlebarsRawBlock,
   getBlockExpression: getHandlebarsBlockExpression,
   getBlockPrefix: getHandlebarsBlockPrefix,
+  getTagDelimiters: getHandlebarsTagDelimiters,
   getPrintedBlockPrefix: getPrintedHandlebarsBlockPrefix,
+  getPartialPrefix: getHandlebarsPartialPrefix,
+  getDecoratorPrefix: getHandlebarsDecoratorPrefix,
+  getElseKeyword: getHandlebarsElseKeyword,
+  getBlockClosePrefix: getHandlebarsBlockClosePrefix,
+  getLineCommentTag: getHandlebarsLineCommentTag,
+  getBlockCommentTag: getHandlebarsBlockCommentTag,
+  getBlockCommentMarkers: getHandlebarsBlockCommentMarkers,
   shouldPreserveTokenVerbatim: shouldPreserveHandlebarsTokenVerbatim,
   shouldPreserveUnclosedBlockRemainder: shouldPreserveUnclosedHandlebarsBlockRemainder,
 };
@@ -236,12 +244,55 @@ function getHandlebarsBlockPrefix(token: TemplateToken): TemplateBlockPrefix {
   return '#';
 }
 
+function getHandlebarsTagDelimiters(triple: boolean) {
+  return triple ? { open: '{{{', close: '}}}' } : { open: '{{', close: '}}' };
+}
+
 function getPrintedHandlebarsBlockPrefix(prefix: TemplateBlockPrefix): string {
   if (prefix === '#>' || prefix === '<') {
     return `${prefix} `;
   }
 
   return prefix;
+}
+
+function getHandlebarsPartialPrefix(): string {
+  return '> ';
+}
+
+function getHandlebarsDecoratorPrefix(): string {
+  return '*';
+}
+
+function getHandlebarsElseKeyword(): string {
+  return 'else';
+}
+
+function getHandlebarsBlockClosePrefix(path: string): string {
+  return `/${path}`;
+}
+
+function getHandlebarsLineCommentTag(value: string): string {
+  if (value.startsWith('<')) {
+    return `{{!${value}}}`;
+  }
+
+  return `{{! ${value}}}`;
+}
+
+function getHandlebarsBlockCommentTag(value: string): string {
+  return `{{!-- ${value} --}}`;
+}
+
+function getHandlebarsBlockCommentMarkers() {
+  return {
+    blockOpen: '{{!--',
+    blockClose: '--}}',
+    inlineOpen: '{{!-- ',
+    inlineClose: ' --}}',
+    emptyBlock: '{{!-- --}}',
+    emptyInline: '{{!--  --}}',
+  };
 }
 
 function shouldPreserveHandlebarsTokenVerbatim(token: TemplateToken): boolean {

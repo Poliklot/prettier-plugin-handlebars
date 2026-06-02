@@ -14,6 +14,7 @@ This repository remains the source of truth for the first extraction phase. The 
    - Define dialect contracts in `src/core/template/*`.
    - Move Handlebars token scanning and token classification into `src/dialects/handlebars/*`.
    - Make the parser call the dialect for delimiter-aware scanning, raw-block handling, block expressions, and block prefixes.
+   - Make the printer call the dialect for tag delimiters, block prefixes, else tags, close tags, partial prefixes, decorator prefixes, and comment markers.
    - Keep the AST and formatter output unchanged while making room for a Mustache dialect.
 
 3. **External core package**
