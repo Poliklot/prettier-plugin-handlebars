@@ -21,8 +21,8 @@ import {
   trimmableRawTextElements as trimmableRawTextTags,
   voidElements as voidTags,
   whitespaceSensitiveRawTextElements as whitespaceSensitiveRawTextTags,
-} from './core/html/tags';
-import { normalizeInlineText, stripCommonIndent, trimSurroundingBlankLines } from './core/text/whitespace';
+} from 'template-format-core';
+import { normalizeInlineText, stripCommonIndent, trimSurroundingBlankLines } from 'template-format-core';
 import { handlebarsDialect } from './dialects/handlebars/tokens';
 
 const { hardline, join, group, indent, align, line, softline, ifBreak, lineSuffix, lineSuffixBoundary } = builders;

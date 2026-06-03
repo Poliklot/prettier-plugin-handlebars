@@ -1,6 +1,6 @@
-import type { SourceRange } from './core/source';
+import type { SourceRange } from 'template-format-core';
 
-export type { SourceRange } from './core/source';
+export type { SourceRange } from 'template-format-core';
 
 export type Node =
   | Program

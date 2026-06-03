@@ -6,6 +6,10 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## Unreleased
 
+### Changed
+
+- Switched shared formatter infrastructure to the external `template-format-core` package.
+
 ## 0.2.13 - 2026-06-01
 
 ### Added
@@ -21,4 +25,3 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 - Stopped formatting Mustache block override openings such as `{{$title}}` as simple mustache statements like `{{ $title }}`.
 - Kept parent templates expanded instead of collapsing multiple override blocks and comments into one unreadable line.
-

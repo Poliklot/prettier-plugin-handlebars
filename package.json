@@ -66,5 +66,8 @@
   "bin": {
     "prettier-plugin-handlebars": "./dist/cli.js",
     "hbs-prettier-init": "./dist/cli.js"
+  },
+  "dependencies": {
+    "template-format-core": "^0.1.0"
   }
 }

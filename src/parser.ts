@@ -13,11 +13,11 @@ import {
   ParseEndReason,
   UnmatchedNode,
 } from './types';
-import { voidElements, rawTextElements, whitespaceSensitiveRawTextElements } from './core/html/tags';
-import { locEnd, locStart, normalizeInput, withOptionalRange, withRange } from './core/source';
-import { parseTemplateExpression } from './core/template/expression';
-import type { TemplateToken as MustacheToken } from './core/template/dialect';
-import { whitespace } from './core/text/whitespace';
+import { voidElements, rawTextElements, whitespaceSensitiveRawTextElements } from 'template-format-core';
+import { locEnd, locStart, normalizeInput, withOptionalRange, withRange } from 'template-format-core';
+import { parseTemplateExpression } from 'template-format-core';
+import type { TemplateToken as MustacheToken } from 'template-format-core';
+import { whitespace } from 'template-format-core';
 import { handlebarsDialect } from './dialects/handlebars/tokens';
 
 export { locEnd, locStart };

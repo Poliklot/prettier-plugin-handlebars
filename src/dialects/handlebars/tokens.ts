@@ -1,5 +1,5 @@
-import { isTemplateExpressionQuoteStart } from '../../core/template/expression';
-import type { TemplateBlockPrefix, TemplateDialect, TemplateToken } from '../../core/template/dialect';
+import { isTemplateExpressionQuoteStart } from 'template-format-core';
+import type { TemplateBlockPrefix, TemplateDialect, TemplateToken } from 'template-format-core';
 
 export const handlebarsDialect: TemplateDialect = {
   name: 'handlebars',

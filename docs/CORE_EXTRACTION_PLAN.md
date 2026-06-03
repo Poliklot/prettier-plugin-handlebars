@@ -1,48 +1,45 @@
 # Core extraction plan
 
-This repository remains the source of truth for the first extraction phase. The goal is to make the shared formatting pieces real inside the Handlebars plugin before moving them into a separate package.
+The shared template-formatting core now lives in the external package [`template-format-core`](https://github.com/Poliklot/template-format-core). This repository keeps Handlebars-specific dialect rules and consumes the shared core as a dependency.
 
-## Order of work
+## Current status
+
+Completed:
 
 1. **Internal core boundary**
-   - Keep the published Handlebars plugin API unchanged.
-   - Move dialect-neutral helpers into `src/core/*`.
-   - Keep Handlebars-specific parsing and printing behavior in the current plugin.
-   - Require the existing Handlebars tests, semantic render checks, and fuzz checks to stay green.
+   - Source range helpers, input normalization, HTML-ish tag metadata, whitespace helpers, expression tokenization, and dialect contracts were first isolated inside this repository.
 
 2. **Internal dialect boundary**
-   - Define dialect contracts in `src/core/template/*`.
-   - Move Handlebars token scanning and token classification into `src/dialects/handlebars/*`.
-   - Make the parser call the dialect for delimiter-aware scanning, raw-block handling, block expressions, and block prefixes.
-   - Make the printer call the dialect for tag delimiters, block prefixes, else tags, close tags, partial prefixes, decorator prefixes, and comment markers.
-   - Keep the AST and formatter output unchanged while making room for a Mustache dialect.
+   - Handlebars token scanning and token classification moved into `src/dialects/handlebars/*`.
+   - The parser calls dialect rules for delimiter-aware scanning, raw-block handling, block expressions, block prefixes, and recovery decisions.
+   - The printer calls dialect rules for tag delimiters, block prefixes, else tags, close tags, partial prefixes, decorator prefixes, and comment markers.
 
 3. **External core package**
-   - Move stable `src/core/*` modules into a separate repository/package.
-   - Keep the package name dialect-neutral.
-   - Do not publish a Mustache plugin until the Handlebars plugin can consume the extracted core.
+   - The neutral core modules moved to `template-format-core`.
+   - This plugin imports shared helpers from `template-format-core` instead of local `src/core/*` files.
 
-4. **Rebuild Handlebars on the extracted core**
-   - Replace local core imports with the external core package.
-   - Preserve the current `.hbs` / `.handlebars` behavior.
-   - Add compatibility tests to prove the package boundary did not change formatting.
+## Next work
 
-5. **Build `prettier-plugin-mustache`**
-   - Use the extracted core.
+1. **Stabilize Handlebars on the external core**
+   - Keep `.hbs` / `.handlebars` behavior unchanged.
+   - Keep semantic render, corpus, and fuzz checks green.
+
+2. **Build `prettier-plugin-mustache`**
+   - Use `template-format-core`.
    - Add Mustache-specific dialect rules separately from Handlebars rules.
-   - Start with `.mustache` support only after the core package is proven by Handlebars.
+   - Support `.mustache` without mixing Mustache semantics into this Handlebars plugin.
 
 ## Core vs dialect boundary
 
-Core should own infrastructure:
+Core owns infrastructure:
 
 - source ranges and input normalization;
 - HTML-ish tag metadata;
 - whitespace and indentation helpers;
 - template expression tokenization primitives;
-- shared parser/printer utilities once they are stable enough.
+- template dialect contracts.
 
-Dialect packages should own semantics:
+Dialect packages own semantics:
 
 - Handlebars block forms, decorators, block partials, and `else if`;
 - Mustache sections, inverted sections, delimiter changes, parents, and blocks;
