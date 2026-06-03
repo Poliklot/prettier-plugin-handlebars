@@ -6,9 +6,12 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## Unreleased
 
+## 0.2.14 - 2026-06-03
+
 ### Changed
 
 - Switched shared formatter infrastructure to the external `template-format-core` package.
+- Bumped the external formatter core dependency to `template-format-core@^0.1.1`.
 
 ## 0.2.13 - 2026-06-01
 
