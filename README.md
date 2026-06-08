@@ -350,6 +350,7 @@ For formatter setup details, see [Editor Setup](./docs/EDITOR_SETUP.md).
 - [Editor Setup](./docs/EDITOR_SETUP.md)
 - [Migration Notes](./docs/MIGRATION.md)
 - [Changelog](./CHANGELOG.md)
+- [Release Automation](./docs/RELEASE_AUTOMATION.md)
 
 ## Notes
 

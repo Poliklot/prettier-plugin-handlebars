@@ -1,0 +1,10 @@
+{
+  "bootstrap-sha": "75b53ab90e2898fc8741b2e877a1fdb4c0195135",
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "package-name": "@poliklot/prettier-plugin-handlebars",
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}
