@@ -1,0 +1,82 @@
+name: Publish npm
+
+on:
+  workflow_call:
+    inputs:
+      tag_name:
+        description: Git tag to publish from, for example v0.2.14.
+        required: true
+        type: string
+      version:
+        description: Package version expected in package.json.
+        required: true
+        type: string
+    secrets:
+      NPM_TOKEN:
+        description: Optional npm automation token. Prefer npm Trusted Publishing when configured.
+        required: false
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Git tag to publish from, for example v0.2.14.
+        required: true
+        type: string
+      version:
+        description: Optional package version override. Defaults to package.json version.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish @poliklot/prettier-plugin-handlebars
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag_name }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Verify release version
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          EXPECTED_VERSION="${{ inputs.version }}"
+          TAG_NAME="${{ inputs.tag_name }}"
+
+          if [ -z "$EXPECTED_VERSION" ]; then
+            EXPECTED_VERSION="$PACKAGE_VERSION"
+          fi
+
+          if [ "$PACKAGE_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "package.json version $PACKAGE_VERSION does not match expected $EXPECTED_VERSION"
+            exit 1
+          fi
+
+          if [ "v$PACKAGE_VERSION" != "$TAG_NAME" ]; then
+            echo "package.json version $PACKAGE_VERSION does not match tag $TAG_NAME"
+            exit 1
+          fi
+
+      - name: Run package checks
+        run: npm run check
+
+      - name: Inspect package contents
+        run: npm run pack:check
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
