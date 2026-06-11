@@ -6,6 +6,13 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## Unreleased
 
+## [0.2.15](https://github.com/Poliklot/prettier-plugin-handlebars/compare/prettier-plugin-handlebars-v0.2.14...prettier-plugin-handlebars-v0.2.15) (2026-06-11)
+
+
+### Bug Fixes
+
+* include node types for TypeScript 6 ([d18e31c](https://github.com/Poliklot/prettier-plugin-handlebars/commit/d18e31c87473ec6c3fb1deccc886774c8d4f0ffe))
+
 ## 0.2.14 - 2026-06-03
 
 ### Changed
