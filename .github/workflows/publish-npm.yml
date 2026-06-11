@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       tag_name:
-        description: Git tag to publish from, for example v0.2.14.
+        description: Git tag to publish from, for example prettier-plugin-handlebars-v0.2.15.
         required: true
         type: string
       version:
@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: Git tag to publish from, for example v0.2.14.
+        description: Git tag to publish from, for example prettier-plugin-handlebars-v0.2.15.
         required: true
         type: string
       version:
@@ -65,8 +65,9 @@ jobs:
             exit 1
           fi
 
-          if [ "v$PACKAGE_VERSION" != "$TAG_NAME" ]; then
+          if [ "$TAG_NAME" != "v$PACKAGE_VERSION" ] && [ "$TAG_NAME" != "prettier-plugin-handlebars-v$PACKAGE_VERSION" ]; then
             echo "package.json version $PACKAGE_VERSION does not match tag $TAG_NAME"
+            echo "Expected v$PACKAGE_VERSION or prettier-plugin-handlebars-v$PACKAGE_VERSION"
             exit 1
           fi
 
