@@ -13,7 +13,7 @@ on:
         type: string
     secrets:
       NPM_TOKEN:
-        description: Optional npm automation token. Prefer npm Trusted Publishing when configured.
+        description: Deprecated compatibility secret. This workflow publishes via npm Trusted Publishing.
         required: false
   workflow_dispatch:
     inputs:
@@ -44,8 +44,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm install
@@ -79,5 +80,3 @@ jobs:
 
       - name: Publish to npm
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
