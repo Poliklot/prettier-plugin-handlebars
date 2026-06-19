@@ -11,10 +11,6 @@ on:
         description: Package version expected in package.json.
         required: true
         type: string
-    secrets:
-      NPM_TOKEN:
-        description: Deprecated compatibility secret. This workflow publishes via npm Trusted Publishing.
-        required: false
   workflow_dispatch:
     inputs:
       tag_name:
@@ -46,10 +42,10 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-          package-manager-cache: false
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Verify release version
         run: |

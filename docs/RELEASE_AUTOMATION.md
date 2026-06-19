@@ -1,6 +1,6 @@
 # Release Automation
 
-This repository uses GitHub Actions for dependency updates, release PRs, npm publishing, and security scanning.
+This repository uses GitHub Actions for dependency updates, release PRs, npm Trusted Publishing, and security scanning.
 
 ## Normal release flow
 
@@ -8,22 +8,18 @@ This repository uses GitHub Actions for dependency updates, release PRs, npm pub
 2. `Release Please` opens or updates a release PR that bumps `package.json`, `CHANGELOG.md`, and `.release-please-manifest.json`.
 3. Review and merge the release PR.
 4. `Release Please` creates the GitHub release and tag.
-5. The npm publish job checks out that tag, verifies `package.json.version` matches it, runs package checks, and publishes to npm.
+5. The npm publish job checks out that tag, verifies `package.json.version` matches it, runs package checks, and publishes to npm through Trusted Publishing provenance.
 
 ## npm publishing credentials
 
-The publish workflow is ready for npm Trusted Publishing and also supports a classic npm automation token.
+Publishing is Trusted Publishing-only. Do not publish locally and do not configure an npm automation token fallback.
 
-Preferred setup:
+Required setup:
 
 - Configure npm Trusted Publishing for this package.
 - Use repository `Poliklot/prettier-plugin-handlebars`.
 - Use workflow `.github/workflows/publish-npm.yml`.
 - Use environment `npm`.
-
-Fallback setup:
-
-- Add a repository secret named `NPM_TOKEN` with an npm automation token.
 
 ## Manual publish fallback
 
