@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import path from 'node:path';
 import { applyInitPlan, createInitPlan, hasCheckFailures, renderInitPlan } from './init';
 
 interface CliOptions {
@@ -9,17 +10,17 @@ interface CliOptions {
   help: boolean;
 }
 
-function main(argv: string[]): number {
-  const options = parseArgs(argv);
+function main(argv: string[], executableName = 'prettier-plugin-handlebars'): number {
+  const options = parseArgs(argv, getDefaultCommand(executableName));
 
   if (options.help || !options.command) {
-    process.stdout.write(renderHelp());
+    process.stdout.write(renderHelp(executableName));
     return options.help ? 0 : 1;
   }
 
   if (options.command !== 'init') {
     process.stderr.write(`Unknown command: ${options.command}\n\n`);
-    process.stderr.write(renderHelp());
+    process.stderr.write(renderHelp(executableName));
     return 1;
   }
 
@@ -40,7 +41,7 @@ function main(argv: string[]): number {
   return 0;
 }
 
-function parseArgs(argv: string[]): CliOptions {
+function parseArgs(argv: string[], defaultCommand?: string): CliOptions {
   const options: CliOptions = {
     cwd: process.cwd(),
     write: false,
@@ -97,15 +98,28 @@ function parseArgs(argv: string[]): CliOptions {
     throw new Error('Use either --write or --check, not both.');
   }
 
+  if (!options.command && defaultCommand) {
+    options.command = defaultCommand;
+  }
+
   return options;
 }
 
-function renderHelp(): string {
+function getDefaultCommand(executableName: string): string | undefined {
+  return executableName === 'hbs-prettier-init' ? 'init' : undefined;
+}
+
+function renderHelp(executableName = 'prettier-plugin-handlebars'): string {
+  const isInitAlias = executableName === 'hbs-prettier-init';
+  const usage = isInitAlias
+    ? '  hbs-prettier-init [--write|--check] [--cwd <dir>]'
+    : '  prettier-plugin-handlebars init [--write|--check] [--cwd <dir>]';
+
   return [
     '@poliklot/prettier-plugin-handlebars',
     '',
     'Usage:',
-    '  prettier-plugin-handlebars init [--write|--check] [--cwd <dir>]',
+    usage,
     '',
     'Commands:',
     '  init        Audit or configure a project for .hbs / .handlebars formatting.',
@@ -122,11 +136,11 @@ function renderHelp(): string {
 
 if (require.main === module) {
   try {
-    process.exitCode = main(process.argv.slice(2));
+    process.exitCode = main(process.argv.slice(2), path.basename(process.argv[1] ?? ''));
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exitCode = 1;
   }
 }
 
-export { main, parseArgs, renderHelp };
+export { main, parseArgs, renderHelp, getDefaultCommand };

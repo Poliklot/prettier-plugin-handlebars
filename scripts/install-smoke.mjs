@@ -12,6 +12,9 @@ const prettierBin = process.platform === 'win32'
 const initBin = process.platform === 'win32'
   ? path.join('node_modules', '.bin', 'prettier-plugin-handlebars.cmd')
   : path.join('node_modules', '.bin', 'prettier-plugin-handlebars');
+const initShortcutBin = process.platform === 'win32'
+  ? path.join('node_modules', '.bin', 'hbs-prettier-init.cmd')
+  : path.join('node_modules', '.bin', 'hbs-prettier-init');
 const prettierVersion = process.env.PRETTIER_VERSION || 'latest';
 const keepTemp = process.env.KEEP_INSTALL_SMOKE === '1';
 
@@ -115,6 +118,7 @@ try {
 
   run(path.join(projectRoot, prettierBin), ['--write', 'sample.hbs'], { cwd: projectRoot });
   run(path.join(projectRoot, initBin), ['init', '--check'], { cwd: projectRoot });
+  run(path.join(projectRoot, initShortcutBin), ['--check'], { cwd: projectRoot });
 
   const formatted = await fs.readFile(path.join(projectRoot, 'sample.hbs'), 'utf8');
   const expected = [

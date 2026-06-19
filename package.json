@@ -64,8 +64,8 @@
     "prettier": ">=3.0.0"
   },
   "bin": {
-    "prettier-plugin-handlebars": "./dist/cli.js",
-    "hbs-prettier-init": "./dist/cli.js"
+    "prettier-plugin-handlebars": "dist/cli.js",
+    "hbs-prettier-init": "dist/init-cli.js"
   },
   "dependencies": {
     "template-format-core": "^0.1.1"
