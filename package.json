@@ -54,7 +54,7 @@
     "prepublishOnly": "npm run check"
   },
   "devDependencies": {
-    "@types/node": "^25.9.3",
+    "@types/node": "^26.0.0",
     "handlebars": "^4.7.9",
     "prettier": "^3.2.0",
     "typescript": "^6.0.3",
