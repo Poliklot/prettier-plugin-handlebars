@@ -1,6 +1,6 @@
 {
   "name": "@poliklot/prettier-plugin-handlebars",
-  "version": "0.2.15",
+  "version": "0.2.16",
   "description": "Prettier plugin for classic Handlebars (.hbs)",
   "license": "MIT",
   "type": "commonjs",
@@ -54,7 +54,7 @@
     "prepublishOnly": "npm run check"
   },
   "devDependencies": {
-    "@types/node": "^26.0.0",
+    "@types/node": "^25.9.3",
     "handlebars": "^4.7.9",
     "prettier": "^3.2.0",
     "typescript": "^6.0.3",
