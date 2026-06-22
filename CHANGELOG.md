@@ -6,6 +6,13 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## Unreleased
 
+## [0.2.16](https://github.com/Poliklot/prettier-plugin-handlebars/compare/prettier-plugin-handlebars-v0.2.15...prettier-plugin-handlebars-v0.2.16) (2026-06-22)
+
+
+### Bug Fixes
+
+* make hbs-prettier-init a direct init shortcut ([3e747bf](https://github.com/Poliklot/prettier-plugin-handlebars/commit/3e747bf63081e24fc3491b4b332c77c30977d76d))
+
 ## [0.2.15](https://github.com/Poliklot/prettier-plugin-handlebars/compare/prettier-plugin-handlebars-v0.2.14...prettier-plugin-handlebars-v0.2.15) (2026-06-11)
 
 
