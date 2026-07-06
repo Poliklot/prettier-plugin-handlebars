@@ -219,6 +219,21 @@ Maximum number of consecutive blank lines preserved between nodes.
 }
 ```
 
+### `classAttributeSameLine`
+
+Keep the first and last tokens of multiline conditional `class` attributes glued to their surrounding quotes.
+
+| Default | CLI Override | API Override |
+| --- | --- | --- |
+| `false` | `--class-attribute-same-line` | `classAttributeSameLine: boolean` |
+
+```json
+{
+  "plugins": ["@poliklot/prettier-plugin-handlebars"],
+  "classAttributeSameLine": true
+}
+```
+
 ## What The Plugin Handles Today
 
 - HTML elements, void elements, comments, and custom elements

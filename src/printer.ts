@@ -1176,6 +1176,11 @@ function printAttribute(attr: ElementAttribute, options: ParserOptions): Doc {
     }
 
     const classLines = formatClassValue(valueString, options);
+
+    if (shouldKeepClassAttributeQuotesSameLine(options)) {
+      return printSameLineClassAttribute(quote, classLines, !classValueStartsWithBlock(valueString));
+    }
+
     return concat([
       'class=',
       quote,
@@ -1221,6 +1226,29 @@ function printAttribute(attr: ElementAttribute, options: ParserOptions): Doc {
   }
 
   return concat([attr.name, '=', quote, escapeAttributeValue(valueString, quote), quote]);
+}
+
+function shouldKeepClassAttributeQuotesSameLine(options: ParserOptions): boolean {
+  return (options as unknown as Record<string, unknown>).classAttributeSameLine === true;
+}
+
+function printSameLineClassAttribute(quote: '"' | "'", classLines: Doc[], indentRestLines: boolean): Doc {
+  const firstLine = classLines[0] ?? '';
+  const restLines = classLines.slice(1);
+
+  if (restLines.length === 0) {
+    return concat(['class=', quote, firstLine, quote]);
+  }
+
+  const restDoc = concat([hardline, join(hardline, restLines)]);
+
+  return concat([
+    'class=',
+    quote,
+    firstLine,
+    indentRestLines ? indent(restDoc) : restDoc,
+    quote,
+  ]);
 }
 
 function printAttributeBlock(block: BlockStatement): Doc {
@@ -1920,6 +1948,11 @@ function tokenizeClass(value: string): string[] {
   remaining.split(/\s+/).filter(Boolean).forEach((word) => tokens.push(word));
 
   return mergeClassTokenFragments(tokens);
+}
+
+function classValueStartsWithBlock(value: string): boolean {
+  const firstToken = tokenizeClass(value)[0];
+  return Boolean(firstToken && (firstToken.startsWith('{{#') || firstToken.startsWith('{{^')));
 }
 
 function isSimpleMustacheToken(token: string): boolean {
