@@ -351,6 +351,80 @@ describe('class with condition', () => {
     `));
   });
 
+  it('can keep conditional class boundary tokens glued to quotes', async () => {
+    const input = stripIndent(`
+      <li
+        class="
+          col-xs-12
+          {{#if isPrimary}}
+            col-md-6
+          {{/if}}
+        "
+      ></li>
+    `);
+    const output = await format(input, { classAttributeSameLine: true });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <li
+        class="col-xs-12
+          {{#if isPrimary}}
+            col-md-6
+          {{/if}}"
+      ></li>
+    `));
+  });
+
+  it('keeps the default multiline class quote layout when classAttributeSameLine is disabled', async () => {
+    const input = `<li class="col-xs-12 {{#if isPrimary}} col-md-6 {{/if}}"></li>`;
+    const output = await format(input, { classAttributeSameLine: false });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <li
+        class="
+          col-xs-12
+          {{#if isPrimary}}
+            col-md-6
+          {{/if}}
+        "
+      ></li>
+    `));
+  });
+
+  it('uses tab indentation with same-line conditional class quotes when tabs are enabled', async () => {
+    const input = `<span class="badge {{#unless hidden}} badge--visible {{/unless}}"></span>`;
+    const output = await format(input, {
+      classAttributeSameLine: true,
+      tabWidth: 2,
+      useTabs: true,
+    });
+
+    expect(output).toBe(
+      [
+        '<span',
+        '\tclass="badge',
+        '\t\t{{#unless hidden}}',
+        '\t\t\tbadge--visible',
+        '\t\t{{/unless}}"',
+        '></span>',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  it('can keep a leading class block glued to the opening quote', async () => {
+    const input = `<div class="{{#if isPrimary}} col-md-6 {{/if}} col-xs-12"></div>`;
+    const output = await format(input, { classAttributeSameLine: true });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <div
+        class="{{#if isPrimary}}
+          col-md-6
+        {{/if}}
+        col-xs-12"
+      ></div>
+    `));
+  });
+
   it('uses tab indentation for nested conditional class lines when tabs are enabled', async () => {
     const input = `<span class="header__top-menu-link-badge{{#unless cart}} header__top-menu-link-badge--hidden{{/unless}}"></span>`;
     const output = await format(input, { useTabs: true, tabWidth: 2 });
