@@ -1,6 +1,6 @@
 {
   "name": "@poliklot/prettier-plugin-handlebars",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Prettier plugin for classic Handlebars (.hbs)",
   "license": "MIT",
   "type": "commonjs",
