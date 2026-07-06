@@ -54,11 +54,11 @@
     "prepublishOnly": "npm run check"
   },
   "devDependencies": {
-    "@types/node": "^26.0.1",
+    "@types/node": "^26.1.0",
     "handlebars": "^4.7.9",
-    "prettier": "^3.9.1",
+    "prettier": "^3.9.4",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.10"
   },
   "peerDependencies": {
     "prettier": ">=3.0.0"
