@@ -6,6 +6,13 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## Unreleased
 
+## [0.3.0](https://github.com/Poliklot/prettier-plugin-handlebars/compare/prettier-plugin-handlebars-v0.2.17...prettier-plugin-handlebars-v0.3.0) (2026-07-06)
+
+
+### Features
+
+* add same-line conditional class option ([fb18c3e](https://github.com/Poliklot/prettier-plugin-handlebars/commit/fb18c3e23d5d97ae6fb741a7a7123c5d3d33f2f8))
+
 ## [0.2.17](https://github.com/Poliklot/prettier-plugin-handlebars/compare/prettier-plugin-handlebars-v0.2.16...prettier-plugin-handlebars-v0.2.17) (2026-06-29)
 
 
