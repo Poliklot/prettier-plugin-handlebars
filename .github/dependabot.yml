@@ -8,6 +8,9 @@ updates:
       time: "07:00"
       timezone: Europe/Moscow
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+      prefix-development: "deps(dev)"
     groups:
       production-dependencies:
         dependency-type: production
