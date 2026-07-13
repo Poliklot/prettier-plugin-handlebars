@@ -28,13 +28,25 @@ jobs:
           manifest-file: .release-please-manifest.json
 
   publish-npm:
-    name: Publish npm package
+    name: Dispatch trusted npm publish workflow
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
-    uses: ./.github/workflows/publish-npm.yml
+    runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: read
-      id-token: write
-    with:
-      tag_name: ${{ needs.release-please.outputs.tag_name }}
-      version: ${{ needs.release-please.outputs.version }}
+    steps:
+      - name: Dispatch publish workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ needs.release-please.outputs.tag_name }}
+          VERSION: ${{ needs.release-please.outputs.version }}
+        run: |
+          set -euo pipefail
+          : "${TAG_NAME:?release-please did not return a tag name}"
+          : "${VERSION:?release-please did not return a version}"
+          gh workflow run publish-npm.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref master \
+            --field "tag_name=$TAG_NAME" \
+            --field "version=$VERSION"
