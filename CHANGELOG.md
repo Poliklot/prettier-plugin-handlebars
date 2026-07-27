@@ -6,6 +6,12 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## Unreleased
 
+## [0.3.3](https://github.com/Poliklot/prettier-plugin-handlebars/compare/prettier-plugin-handlebars-v0.3.2...prettier-plugin-handlebars-v0.3.3) (2026-07-27)
+
+### deps
+
+* **dev:** update Prettier and Node.js types and resolve the PostCSS advisory
+
 ## [0.3.2](https://github.com/Poliklot/prettier-plugin-handlebars/compare/prettier-plugin-handlebars-v0.3.1...prettier-plugin-handlebars-v0.3.2) (2026-07-13)
 
 
