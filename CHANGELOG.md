@@ -6,6 +6,13 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## Unreleased
 
+## [0.3.4](https://github.com/Poliklot/prettier-plugin-handlebars/compare/prettier-plugin-handlebars-v0.3.3...prettier-plugin-handlebars-v0.3.4) (2026-08-11)
+
+
+### Bug Fixes
+
+* **deps:** refresh transitive dependencies ([0c2e689](https://github.com/Poliklot/prettier-plugin-handlebars/commit/0c2e689e2b7afa2cad8149e3778626336bf4ae6f))
+
 ## [0.3.3](https://github.com/Poliklot/prettier-plugin-handlebars/compare/prettier-plugin-handlebars-v0.3.2...prettier-plugin-handlebars-v0.3.3) (2026-07-27)
 
 ### deps
