@@ -336,6 +336,62 @@ describe('partials', () => {
 });
 
 describe('class with condition', () => {
+  it('keeps long static class attributes on one line when configured', async () => {
+    const input =
+      '<div class="container m-auto flex items-center justify-between gap-2 rounded-2xl bg-white px-8 py-4 shadow-md dark:bg-stone-900"></div>';
+    const defaultOutput = await format(input);
+    const output = await format(input, { classAttributeLayout: 'single-line' });
+
+    expect(defaultOutput).toContain('class="\n');
+    expect(output).toBe(stripIndentWithNL(`
+      <div
+        class="container m-auto flex items-center justify-between gap-2 rounded-2xl bg-white px-8 py-4 shadow-md dark:bg-stone-900"
+      ></div>
+    `));
+    expect(await format(output, { classAttributeLayout: 'single-line' })).toBe(output);
+  });
+
+  it('compacts conditional class attributes without changing class separators', async () => {
+    const input =
+      '<div class="button {{#if active}} button--active {{else}} button--inactive {{/if}} tail"></div>';
+    const output = await format(input, {
+      classAttributeLayout: 'single-line',
+      classAttributeSameLine: true,
+    });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <div
+        class="button {{#if active}} button--active {{else}} button--inactive {{/if}} tail"
+      ></div>
+    `));
+    expect(
+      await format(output, {
+        classAttributeLayout: 'single-line',
+        classAttributeSameLine: true,
+      }),
+    ).toBe(output);
+  });
+
+  it('keeps dynamic class fragments glued and honors singleQuote', async () => {
+    const input = '<div class="bg-{{color}} {{#if large}}size-{{size}}{{/if}}"></div>';
+    const output = await format(input, {
+      classAttributeLayout: 'single-line',
+      singleQuote: true,
+    });
+
+    expect(output).toBe(stripIndentWithNL(`
+      <div
+        class='bg-{{ color }} {{#if large}}size-{{ size }}{{/if}}'
+      ></div>
+    `));
+    expect(
+      await format(output, {
+        classAttributeLayout: 'single-line',
+        singleQuote: true,
+      }),
+    ).toBe(output);
+  });
+
   it('expands conditional classes', async () => {
     const input = `<div class="block{{#if other}} block--active{{/if}}"></div>`;
     const output = await format(input);

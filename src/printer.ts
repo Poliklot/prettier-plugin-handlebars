@@ -1167,6 +1167,13 @@ function printAttribute(attr: ElementAttribute, options: ParserOptions): Doc {
   const valueString = stringifyAttributeValue(attr.value as AttributeValue);
   const quote = chooseAttributeQuote(valueString, options);
 
+  if (attr.name === 'class' && shouldKeepClassAttributeSingleLine(options)) {
+    const compactValue = stringifyCompactClassValue(attr.value as AttributeValue, options);
+    const compactQuote = chooseAttributeQuote(compactValue, options);
+
+    return concat([attr.name, '=', compactQuote, escapeAttributeValue(compactValue, compactQuote), compactQuote]);
+  }
+
   if (attr.name === 'class' && hasHandlebarsBlock(valueString)) {
     if (classValueHasGluedBlock(attr.value as AttributeValue)) {
       const compactValue = stringifyCompactClassValue(attr.value as AttributeValue);
@@ -1232,6 +1239,10 @@ function shouldKeepClassAttributeQuotesSameLine(options: ParserOptions): boolean
   return (options as unknown as Record<string, unknown>).classAttributeSameLine === true;
 }
 
+function shouldKeepClassAttributeSingleLine(options?: ParserOptions): boolean {
+  return (options as unknown as Record<string, unknown> | undefined)?.classAttributeLayout === 'single-line';
+}
+
 function printSameLineClassAttribute(quote: '"' | "'", classLines: Doc[], indentRestLines: boolean): Doc {
   const firstLine = classLines[0] ?? '';
   const restLines = classLines.slice(1);
@@ -1289,13 +1300,13 @@ function classTokenEndsWithContinuation(token: string): boolean {
   return /[-_:]$/.test(token);
 }
 
-function blockProgramToCompactClassValue(program: Program): string {
+function blockProgramToCompactClassValue(program: Program, options?: ParserOptions): string {
   const parts: string[] = [];
   let previousNode: Node | null = null;
 
   program.body.forEach((child) => {
     const node = child as Node;
-    const value = stringifyCompactClassNode(node);
+    const value = stringifyCompactClassNode(node, options);
     if (!value) {
       return;
     }
@@ -1308,10 +1319,14 @@ function blockProgramToCompactClassValue(program: Program): string {
     previousNode = node;
   });
 
-  return parts.join('');
+  const keepBoundarySpaces = shouldKeepClassAttributeSingleLine(options);
+  const leadingSpace = keepBoundarySpaces && programStartsWithClassSeparator(program, options) ? ' ' : '';
+  const trailingSpace = keepBoundarySpaces && programEndsWithClassSeparator(program, options) ? ' ' : '';
+
+  return `${leadingSpace}${parts.join('')}${trailingSpace}`;
 }
 
-function stringifyCompactClassNode(node: Node): string {
+function stringifyCompactClassNode(node: Node, options?: ParserOptions): string {
   switch (node.type) {
     case 'TextNode':
       return normalizeInlineText((node as TextNode).value);
@@ -1328,7 +1343,7 @@ function stringifyCompactClassNode(node: Node): string {
       );
     }
     case 'BlockStatement':
-      return stringifyCompactClassBlock(node as BlockStatement);
+      return stringifyCompactClassBlock(node as BlockStatement, options);
     case 'CommentStatement':
       return stringifyNode(node);
     default:
@@ -1354,7 +1369,7 @@ function shouldInsertCompactClassSeparator(left: Node, right: Node): boolean {
   return false;
 }
 
-function stringifyCompactClassBlock(block: BlockStatement): string {
+function stringifyCompactClassBlock(block: BlockStatement, options?: ParserOptions): string {
   const prefix = getBlockPrefix(block);
   const printedPrefix = getPrintedBlockPrefix(prefix);
   const expression = buildExpression(block);
@@ -1363,7 +1378,7 @@ function stringifyCompactClassBlock(block: BlockStatement): string {
     getTrimOpen(block),
     getTrimClose(block),
   );
-  const program = blockProgramToCompactClassValue(block.program as Program);
+  const program = blockProgramToCompactClassValue(block.program as Program, options);
   const inverseChain = (block.inverseChain ?? [])
     .map((branch) => {
       const branchExpression = buildExpression(branch);
@@ -1372,7 +1387,7 @@ function stringifyCompactClassBlock(block: BlockStatement): string {
         getTrimOpen(branch),
         getTrimClose(branch),
       );
-      return `${openBranch}${blockProgramToCompactClassValue(branch.program as Program)}`;
+      return `${openBranch}${blockProgramToCompactClassValue(branch.program as Program, options)}`;
     })
     .join('');
   const inverse =
@@ -1381,7 +1396,7 @@ function stringifyCompactClassBlock(block: BlockStatement): string {
           templateDialect.getElseKeyword(),
           block.inverseTrimOpen ? '~' : '',
           block.inverseTrimClose ? '~' : '',
-        )}${blockProgramToCompactClassValue(block.inverse as Program)}`
+        )}${blockProgramToCompactClassValue(block.inverse as Program, options)}`
       : '';
   const close = buildTemplateTag(
     templateDialect.getBlockClosePrefix(block.path),
@@ -1415,24 +1430,65 @@ function hasRenderableProgramContent(program: Program): boolean {
   return Boolean(getFirstRenderableProgramNode(program));
 }
 
-function programStartsWithClassSeparator(program: Program): boolean {
+function programStartsWithClassSeparator(program: Program, options?: ParserOptions): boolean {
   const first = getFirstRenderableProgramNode(program);
-  return first?.type === 'TextNode' && Boolean((first as TextNode).leadingWhitespace);
+  return Boolean(
+    first &&
+      ((first.type === 'TextNode' && Boolean((first as TextNode).leadingWhitespace)) ||
+        hasOriginalWhitespaceBetween(program, first, options)),
+  );
 }
 
-function programEndsWithClassSeparator(program: Program): boolean {
+function programEndsWithClassSeparator(program: Program, options?: ParserOptions): boolean {
   const last = getLastRenderableProgramNode(program);
-  return last?.type === 'TextNode' && Boolean((last as TextNode).trailingWhitespace);
+  return Boolean(
+    last &&
+      ((last.type === 'TextNode' && Boolean((last as TextNode).trailingWhitespace)) ||
+        hasOriginalWhitespaceBeforeProgramBoundary(program, last, options)),
+  );
+}
+
+function hasOriginalWhitespaceBetween(program: Program, first: Node, options?: ParserOptions): boolean {
+  const programRange = program.range;
+  const firstRange = first.range;
+  const originalText = (options as { originalText?: string } | undefined)?.originalText;
+
+  return Boolean(
+    originalText &&
+      programRange &&
+      firstRange &&
+      /\s/.test(originalText.slice(programRange[0], firstRange[0])),
+  );
+}
+
+function hasOriginalWhitespaceBeforeProgramBoundary(
+  program: Program,
+  last: Node,
+  options?: ParserOptions,
+): boolean {
+  const programRange = program.range;
+  const lastRange = last.range;
+  const originalText = (options as { originalText?: string } | undefined)?.originalText;
+  if (!originalText || !programRange || !lastRange) {
+    return false;
+  }
+
+  const boundaryStart = templateDialect.findNextOpen(originalText, lastRange[1]);
+  return (
+    boundaryStart >= lastRange[1] &&
+    boundaryStart <= programRange[1] &&
+    /\s/.test(originalText.slice(lastRange[1], boundaryStart))
+  );
 }
 
 function blockStartsWithClassSeparator(block: BlockStatement): boolean {
   const programs = getClassBlockPrograms(block).filter(hasRenderableProgramContent);
-  return programs.length > 0 && programs.every(programStartsWithClassSeparator);
+  return programs.length > 0 && programs.every((program) => programStartsWithClassSeparator(program));
 }
 
 function blockEndsWithClassSeparator(block: BlockStatement): boolean {
   const programs = getClassBlockPrograms(block).filter(hasRenderableProgramContent);
-  return programs.length > 0 && programs.every(programEndsWithClassSeparator);
+  return programs.length > 0 && programs.every((program) => programEndsWithClassSeparator(program));
 }
 
 function shouldGlueTextToFollowingClassBlock(text: string, block: BlockStatement): boolean {
@@ -1493,7 +1549,7 @@ function classValueHasGluedBlock(value: AttributeValue): boolean {
   });
 }
 
-function stringifyCompactClassValue(value: AttributeValue): string {
+function stringifyCompactClassValue(value: AttributeValue, options?: ParserOptions): string {
   const pieces: string[] = [];
 
   value.parts.forEach((part, index, parts) => {
@@ -1530,11 +1586,11 @@ function stringifyCompactClassValue(value: AttributeValue): string {
     }
 
     if (part.type === 'BlockStatement') {
-      pieces.push(stringifyCompactClassBlock(part as BlockStatement));
+      pieces.push(stringifyCompactClassBlock(part as BlockStatement, options));
       return;
     }
 
-    pieces.push(stringifyCompactClassNode(part as Node));
+    pieces.push(stringifyCompactClassNode(part as Node, options));
   });
 
   return pieces.join('').trim();

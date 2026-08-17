@@ -234,6 +234,23 @@ Keep the first and last tokens of multiline conditional `class` attributes glued
 }
 ```
 
+### `classAttributeLayout`
+
+Control whether `class` attribute values may use multiple physical lines. The default `auto` mode preserves the existing formatting rules. Use `single-line` to keep static and conditional class values on one line; the surrounding HTML tag may still wrap.
+
+| Default | CLI Override | API Override |
+| --- | --- | --- |
+| `"auto"` | `--class-attribute-layout <auto\|single-line>` | `classAttributeLayout: "auto" \| "single-line"` |
+
+```json
+{
+  "plugins": ["@poliklot/prettier-plugin-handlebars"],
+  "classAttributeLayout": "single-line"
+}
+```
+
+`classAttributeLayout: "single-line"` takes precedence over `classAttributeSameLine`, whose existing behavior remains unchanged.
+
 ## What The Plugin Handles Today
 
 - HTML elements, void elements, comments, and custom elements
