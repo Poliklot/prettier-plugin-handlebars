@@ -6,6 +6,13 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## Unreleased
 
+## [0.4.0](https://github.com/Poliklot/prettier-plugin-handlebars/compare/prettier-plugin-handlebars-v0.3.4...prettier-plugin-handlebars-v0.4.0) (2026-08-17)
+
+
+### Features
+
+* add single-line class attribute layout ([#70](https://github.com/Poliklot/prettier-plugin-handlebars/issues/70)) ([a69f5dc](https://github.com/Poliklot/prettier-plugin-handlebars/commit/a69f5dc1272b5e69073bc75208669fc11754ac7b))
+
 ## [0.3.4](https://github.com/Poliklot/prettier-plugin-handlebars/compare/prettier-plugin-handlebars-v0.3.3...prettier-plugin-handlebars-v0.3.4) (2026-08-11)
 
 
