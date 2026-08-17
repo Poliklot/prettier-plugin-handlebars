@@ -48,6 +48,23 @@ export const options = {
     default: false,
     description: 'Keep the first and last tokens of multiline conditional class attributes glued to their quotes.',
   },
+  classAttributeLayout: {
+    since: '0.4.0',
+    category: 'HTML',
+    type: 'choice',
+    default: 'auto',
+    description: 'Control whether class attribute values may use multiple lines.',
+    choices: [
+      {
+        value: 'auto',
+        description: 'Wrap long and conditional class attributes using the default formatting rules.',
+      },
+      {
+        value: 'single-line',
+        description: 'Keep class attribute values on a single physical line.',
+      },
+    ],
+  },
 };
 
 export const defaultOptions = {};
