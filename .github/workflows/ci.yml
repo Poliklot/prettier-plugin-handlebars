@@ -41,7 +41,9 @@ jobs:
         run: npm ci
 
       - name: Install matrix Prettier
-        run: npm install --no-save --package-lock=false prettier@${{ matrix.prettier-version }}
+        # npm 10.9.8 (bundled with Node 22) can crash while replacing a peer
+        # dependency in an existing tree. The matrix supplies Prettier explicitly.
+        run: npm install --no-save --package-lock=false --legacy-peer-deps prettier@${{ matrix.prettier-version }}
 
       - name: Print versions
         run: |
