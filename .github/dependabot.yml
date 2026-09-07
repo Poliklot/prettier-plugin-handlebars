@@ -23,6 +23,12 @@ updates:
           - minor
           - patch
 
+    ignore:
+      # Vitest 5 drops Node 18 and Node 20 support used by the CI matrix.
+      - dependency-name: vitest
+        update-types:
+          - version-update:semver-major
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
