@@ -388,3 +388,7 @@ For formatter setup details, see [Editor Setup](./docs/EDITOR_SETUP.md).
 
 - This README is intentionally self-contained so it works well on npm too.
 - If your editor does not format `.hbs` on save, the safest setup is an explicit `overrides` rule with `parser: "handlebars"`.
+
+## Shared embedding work
+
+See [shared embedding architecture and cross-repository dependencies](docs/shared-embedding.md). This source work depends on [the core tracking issue](https://github.com/Poliklot/template-format-core/issues/2).

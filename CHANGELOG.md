@@ -6,6 +6,12 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## Unreleased
 
+### Shared embedded-language safety
+
+* Consume shared placeholder/Doc validation and HTML context from `template-format-core`, retaining Handlebars AST and dialect behavior.
+* Preserve exact raw source on disabled/rejected embedding; retain required dynamic JS key quotes, expression grouping, literal markers and string whitespace. Unquoted template fragments may now select conservative fallback.
+* See `docs/shared-embedding.md` and Poliklot/template-format-core#2 for the coordinated dependency and release gates.
+
 ## [0.4.0](https://github.com/Poliklot/prettier-plugin-handlebars/compare/prettier-plugin-handlebars-v0.3.4...prettier-plugin-handlebars-v0.4.0) (2026-08-17)
 
 

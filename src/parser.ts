@@ -1,3 +1,4 @@
+import { createHtmlBoundaryScanner } from 'template-format-core/html/raw-regions';
 import {
   Program,
   Node,
@@ -87,7 +88,7 @@ function parseChildren(
       );
     }
 
-    const closeIdx = closeStart >= 0 ? text.indexOf('>', closeStart) : -1;
+    const closeIdx = closeStart >= 0 ? (createHtmlBoundaryScanner(text).tagEnd(closeStart + 2 + endTag.length)?.end ?? text.length + 1) - 1 : -1;
     const nextPos = closeIdx >= 0 ? closeIdx + 1 : contentEnd;
 
     return { nodes, position: nextPos, endReason: closeStart >= 0 ? 'tagClose' : null };
@@ -343,6 +344,12 @@ function parseChildren(
           rangeOffset + newPos,
         ),
       );
+      if (['script', 'style'].includes(tagResult.tag.toLowerCase()) && children.length === 1 && children[0].type === 'TextNode') {
+        const bodyEnd = children[0].range![1] - rangeOffset;
+        Object.defineProperty(nodes[nodes.length - 1], 'rawText', {
+          value: { closing: text.slice(bodyEnd, newPos) }, enumerable: false,
+        });
+      }
       pos = newPos;
       continue;
     }
@@ -1298,7 +1305,7 @@ function findMatchingTagClose(text: string, tag: string, position: number, limit
 
     if (tagResult.kind === 'open' && rawTextElements.has(tagResult.tag.toLowerCase())) {
       const closeStart = findRawTextClose(text, tagResult.end, tagResult.tag);
-      const closeIdx = closeStart >= 0 ? text.indexOf('>', closeStart) : -1;
+      const closeIdx = closeStart >= 0 ? (createHtmlBoundaryScanner(text).tagEnd(closeStart + 2 + tagResult.tag.length)?.end ?? text.length + 1) - 1 : -1;
       pos = closeIdx >= 0 ? closeIdx + 1 : text.length;
       continue;
     }
@@ -1349,47 +1356,7 @@ function consumeUnsupportedBlock(text: string, position: number, openToken: Must
 }
 
 function findRawTextClose(text: string, position: number, tag: string): number {
-  const normalizedTag = tag.toLowerCase();
-
-  if (normalizedTag === 'pre' || normalizedTag === 'textarea') {
-    return text.toLowerCase().indexOf(`</${normalizedTag}`, position);
-  }
-
-  let quote: '"' | "'" | '`' | null = null;
-  let escaped = false;
-
-  for (let index = position; index < text.length; index += 1) {
-    const char = text[index];
-
-    if (quote) {
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-
-      if (char === '\\') {
-        escaped = true;
-        continue;
-      }
-
-      if (char === quote) {
-        quote = null;
-      }
-
-      continue;
-    }
-
-    if (char === '"' || char === "'" || char === '`') {
-      quote = char;
-      continue;
-    }
-
-    if (text.startsWith(`</${tag}`, index)) {
-      return index;
-    }
-  }
-
-  return -1;
+  return createHtmlBoundaryScanner(text).rawClose(tag, position)?.start ?? -1;
 }
 
 function consumeTagLikeChunk(text: string, position: number): number {

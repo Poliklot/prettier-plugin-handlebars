@@ -51,7 +51,7 @@
     "format:hbs-tree": "node scripts/format-hbs-tree.mjs",
     "smoke:install": "node scripts/install-smoke.mjs",
     "pack:check": "node scripts/pack-check.mjs",
-    "prepublishOnly": "npm run check"
+    "prepublishOnly": "node scripts/check-core-release.mjs && npm run check"
   },
   "devDependencies": {
     "@types/node": "^26.5.0",
@@ -68,6 +68,6 @@
     "hbs-prettier-init": "dist/init-cli.js"
   },
   "dependencies": {
-    "template-format-core": "^0.1.1"
+    "template-format-core": "git+https://github.com/Poliklot/template-format-core.git#a4c907e5f69edf1444d57caa2c690650e5d197ff"
   }
 }
