@@ -663,8 +663,7 @@ describe('schema and data payload coverage from mined patterns', () => {
   });
 
   it('preserves organization ld-json blocks with contact-point and same-as loops', async () => {
-    await expectStableFormat(
-      `
+    const source = `
         <script type="application/ld+json">
         	{
         	  "@context": "https://schema.org",
@@ -692,42 +691,18 @@ describe('schema and data payload coverage from mined patterns', () => {
         	  ]{{/if}}
         	}
         </script>
-      `,
-      `
-        <script type="application/ld+json">
-          {
-            "@context": "https://schema.org",
-            "@type": "Organization",
-            "name": "{{nameA}}",
-            "url": "{{urlA}}"
-            {{#if logoA}},
-            "logo": "{{logoA}}"{{/if}}
-            {{#if pointListA}},
-            "contactPoint": [
-              {{#each pointListA}}
-              {
-                "@type": "ContactPoint",
-                "telephone": "{{telephone}}"
-                {{#if kindA}},
-                "contactType": "{{kindA}}"{{/if}}
-              }{{#unless @last}},{{/unless}}
-              {{/each}}
-            ]{{/if}}
-            {{#if urlListA}},
-            "sameAs": [
-              {{#each urlListA}}
-              "{{this}}"{{#unless @last}},{{/unless}}
-              {{/each}}
-            ]{{/if}}
-          }
-        </script>
-      `,
-    );
+      `;
+    const once = await format(source);
+    // Do not dedent/normalize unknown JSON or its template tokens.
+    const body = (text: string) => text.slice(text.indexOf('>') + 1, text.lastIndexOf('</script>'));
+    expect(body(once)).toBe(body(source));
+    expect(once.startsWith('<script type="application/ld+json">')).toBe(true);
+    expect(await format(once)).toBe(once);
+    expect(await format(await format(once))).toBe(once);
   });
 
   it('preserves local-business ld-json blocks with nested opening-hours loops', async () => {
-    await expectStableFormat(
-      `
+    const source = `
         <script type="application/ld+json">
           {
             "@context": "https://schema.org",
@@ -753,35 +728,14 @@ describe('schema and data payload coverage from mined patterns', () => {
             ]{{/if}}
           }
         </script>
-      `,
-      `
-        <script type="application/ld+json">
-          {
-            "@context": "https://schema.org",
-            "@type": "LocalBusiness",
-            "name": "{{nameA}}",
-            "url": "{{urlA}}"
-            {{#if imageA}},
-            "image": "{{imageA}}"{{/if}}
-            {{#if hoursListA}},
-            "openingHoursSpecification": [
-              {{#each hoursListA}}
-              {
-                "@type": "OpeningHoursSpecification",
-                "dayOfWeek": [
-                  {{#each dayListA}}
-                  "https://schemaOrg/{{this}}"{{#unless @last}},{{/unless}}
-                  {{/each}}
-                ],
-                "opens": "{{opens}}",
-                "closes": "{{closes}}"
-              }{{#unless @last}},{{/unless}}
-              {{/each}}
-            ]{{/if}}
-          }
-        </script>
-      `,
-    );
+      `;
+    const once = await format(source);
+    // Do not dedent/normalize unknown JSON or its template tokens.
+    const body = (text: string) => text.slice(text.indexOf('>') + 1, text.lastIndexOf('</script>'));
+    expect(body(once)).toBe(body(source));
+    expect(once.startsWith('<script type="application/ld+json">')).toBe(true);
+    expect(await format(once)).toBe(once);
+    expect(await format(await format(once))).toBe(once);
   });
 
   it('formats multiline setVar parseJSON payloads without corrupting embedded json text', async () => {

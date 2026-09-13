@@ -1,3 +1,6 @@
+import { createPlaceholderPlan, resolveEmbeddedLanguage } from 'template-format-core';
+import type { EmbeddedLanguage } from 'template-format-core';
+import { formatEmbeddedDoc, sourceToDoc } from 'template-format-core/prettier';
 import type { AstPath, Doc, Options, ParserOptions, Printer } from 'prettier';
 import { builders, utils } from 'prettier/doc';
 import {
@@ -26,8 +29,7 @@ import { normalizeInlineText, stripCommonIndent, trimSurroundingBlankLines } fro
 import { handlebarsDialect } from './dialects/handlebars/tokens';
 
 const { hardline, join, group, indent, align, line, softline, ifBreak, lineSuffix, lineSuffixBoundary } = builders;
-const { stripTrailingHardline, willBreak } = utils;
-const mapDoc = (utils as unknown as { mapDoc: (doc: Doc, cb: (doc: Doc) => Doc) => Doc }).mapDoc;
+const { willBreak } = utils;
 const concat = (builders as unknown as { concat: (parts: Doc[]) => Doc }).concat;
 const templateDialect = handlebarsDialect;
 type PrintableExpression = MustacheStatement | BlockStatement | ElseBranch | PartialStatement | DecoratorStatement;
@@ -182,41 +184,17 @@ export const printer: Printer<Node> = {
   },
   embed(path, options) {
     const node = path.getValue() as Node;
-    if (node.type !== 'TextNode') {
-      return null;
-    }
-
-    const parentNode = path.getParentNode() as Node | null;
-    if (parentNode?.type !== 'ElementNode') {
-      return null;
-    }
-
-    const parser = getEmbeddedRawTextParser(parentNode as ElementNode, node as TextNode, options);
-    if (!parser) {
-      return null;
-    }
-
+    const parent = path.getParentNode() as Node | null;
+    if (node.type !== 'TextNode' || parent?.type !== 'ElementNode') return null;
+    const language = getEmbeddedLanguage(parent, node, options);
+    if (!language) return null;
+    const prepared = prepareEmbeddedSource(node.value);
+    if (!prepared) return null;
     return async (textToDoc) => {
-      const content = normalizeEmbeddedRawText((node as TextNode).value);
-      if (content.trim() === '') {
-        return '';
-      }
-
-      const prepared = prepareEmbeddedRawText(content, parser);
-      if (!prepared) {
-        return formatVerbatimText(content);
-      }
-
-      try {
-        const doc = await textToDoc(prepared.text, {
-          ...options,
-          parser,
-        });
-
-        return stripTrailingHardline(restoreHandlebarsPlaceholders(doc, prepared.replacements));
-      } catch {
-        return formatVerbatimText(content);
-      }
+      const contents = await formatEmbeddedDoc(prepared.text, prepared.restore, language, options, textToDoc, { preserveTemplateQuoteStyle: true });
+      // The child owns real body boundaries. Fallback retains its entire source
+      // slice; the parent must not add artificial indentation/newlines to it.
+      return contents === null ? sourceToDoc(node.value) : [indent([hardline, contents]), hardline];
     };
   },
   print(path, options, print) {
@@ -229,15 +207,12 @@ export const printer: Printer<Node> = {
         return printElement(path as AstPath<ElementNode>, options, print);
       case 'TextNode':
         if (node.verbatim) {
-          if (node.preserveWhitespace) {
-            return node.value;
+          const parent = path.getParentNode() as Node | null;
+          if (parent?.type === 'ElementNode' && ['script', 'style'].includes(parent.tag.toLowerCase())) {
+            return sourceToDoc(node.value);
           }
-
-          const parentNode = path.getParentNode() as Node | null;
-          const value = shouldTrimRawTextBoundaryWhitespace(parentNode, node)
-            ? trimRawTextBoundaryWhitespace(node.value)
-            : node.value;
-          return formatVerbatimText(value);
+          if (node.preserveWhitespace) return node.value;
+          return formatVerbatimText(node.value);
         }
 
         if (node.blankLines) {
@@ -401,255 +376,50 @@ function formatVerbatimText(content: string): Doc {
   return concat(docs);
 }
 
-function shouldTrimRawTextBoundaryWhitespace(parentNode: Node | null, node: TextNode): boolean {
-  return (
-    parentNode?.type === 'ElementNode' &&
-    trimmableRawTextTags.has((parentNode as ElementNode).tag.toLowerCase()) &&
-    node.verbatim === true &&
-    node.preserveWhitespace !== true
-  );
-}
-
-function trimRawTextBoundaryWhitespace(value: string): string {
-  return value.replace(/[ \t]+$/, '');
-}
-
-type EmbeddedRawTextParser = 'babel' | 'css';
-
-interface PreparedEmbeddedRawText {
-  text: string;
-  replacements: Map<string, string>;
-}
-
-function getEmbeddedRawTextParser(
-  element: ElementNode,
-  child: TextNode,
-  options: Options | ParserOptions,
-): EmbeddedRawTextParser | null {
-  if (!isEmbeddedLanguageFormattingEnabled(options) || !isSingleRawTextChild(element, child)) {
-    return null;
-  }
-
-  const tag = element.tag.toLowerCase();
-  const content = normalizeEmbeddedRawText(child.value);
-  let parser: EmbeddedRawTextParser | null = null;
-
-  if (tag === 'style') {
-    const type = getStaticAttributeValue(element, 'type');
-    parser = !type || type === 'text/css' ? 'css' : null;
-  } else if (tag === 'script') {
-    if (hasPlainAttribute(element, 'src')) {
-      return null;
-    }
-
-    const type = getStaticAttributeValue(element, 'type');
-    parser = isJavaScriptScriptType(type) ? 'babel' : null;
-  }
-
-  if (!parser || !canFormatEmbeddedRawText(content, tag, parser)) {
-    return null;
-  }
-
-  return parser;
-}
-
-function isEmbeddedLanguageFormattingEnabled(options: Options | ParserOptions): boolean {
-  return (options as { embeddedLanguageFormatting?: string }).embeddedLanguageFormatting !== 'off';
-}
-
 function isSingleRawTextChild(element: ElementNode, child: TextNode): boolean {
-  return (
-    trimmableRawTextTags.has(element.tag.toLowerCase()) &&
-    element.children.length === 1 &&
-    element.children[0] === child &&
-    child.verbatim === true
-  );
+  return ['script', 'style'].includes(element.tag.toLowerCase()) &&
+    element.children.length === 1 && element.children[0] === child && child.verbatim === true;
 }
 
-function canFormatEmbeddedRawText(content: string, tag: string, parser: EmbeddedRawTextParser): boolean {
-  return (
-    content.trim() !== '' &&
-    !new RegExp(`</\\s*${tag}`, 'i').test(content) &&
-    !(tag === 'style' && hasMultilineBlockComment(content)) &&
-    prepareEmbeddedRawText(content, parser) !== null
-  );
-}
-
-function prepareEmbeddedRawText(content: string, parser: EmbeddedRawTextParser): PreparedEmbeddedRawText | null {
-  const tokens = findEmbeddedHandlebarsTokens(content);
-  if (tokens.length === 0) {
-    return { text: content, replacements: new Map() };
+function getEmbeddedLanguage(element: ElementNode, child: TextNode, options: Options | ParserOptions): EmbeddedLanguage | null {
+  if (options.embeddedLanguageFormatting === 'off' || !isSingleRawTextChild(element, child) || !child.value.trim()) return null;
+  const attributes = new Map<string, string | null>();
+  for (const attribute of element.attributes) {
+    // A conditional/dynamic attribute can produce src/type/lang at runtime.
+    if (attribute.type !== 'Attribute' || templateDialect.findNextOpen(attribute.name, 0) !== -1) return null;
+    const name = attribute.name.toLowerCase();
+    if (!attributes.has(name)) attributes.set(name, !attribute.value ? '' :
+      attribute.value.parts.every((part) => part.type === 'TextNode')
+        ? attribute.value.parts.map((part) => (part as TextNode).value).join('') : null);
   }
+  const tag = element.tag.toLowerCase() as 'script' | 'style';
+  if (element.rawText && !new RegExp(`^</${tag}[\\t\\n\\f\\r ]*>$`, 'i').test(element.rawText.closing)) return null;
+  if (tag === 'script' && /<!--/.test(child.value)) return null;
+  // Retain the existing conservative CSS-banner policy.
+  if (tag === 'style' && /\/\*[\s\S]*?\n[\s\S]*?\*\//.test(child.value)) return null;
 
-  if (tokens.some((token) => isUnsafeEmbeddedHandlebarsToken(content, token))) {
-    return null;
-  }
-
-  const replacements = new Map<string, string>();
-  let prepared = '';
-  let lastIndex = 0;
-
-  tokens.forEach((token, index) => {
-    const placeholder = parser === 'css' ? `poliklot-hbs-placeholder-${index}` : `__POLIKLOT_HBS_PLACEHOLDER_${index}__`;
-    prepared += content.slice(lastIndex, token.start);
-    prepared += placeholder;
-    replacements.set(placeholder, content.slice(token.start, token.end));
-    lastIndex = token.end;
-  });
-
-  prepared += content.slice(lastIndex);
-
-  return { text: prepared, replacements };
+  return resolveEmbeddedLanguage(tag, attributes);
 }
 
-function restoreHandlebarsPlaceholders(doc: Doc, replacements: Map<string, string>): Doc {
-  if (replacements.size === 0) {
-    return doc;
-  }
-
-  const placeholders = [...replacements.keys()].sort((left, right) => right.length - left.length);
-
-  return mapDoc(doc, (currentDoc) => {
-    if (typeof currentDoc !== 'string') {
-      return currentDoc;
-    }
-
-    return placeholders.reduce((value, placeholder) => {
-      const replacement = replacements.get(placeholder) ?? placeholder;
-      return value.split(placeholder).join(replacement);
-    }, currentDoc);
-  });
-}
-
-interface EmbeddedHandlebarsToken {
-  start: number;
-  end: number;
-}
-
-function findEmbeddedHandlebarsTokens(content: string): EmbeddedHandlebarsToken[] {
-  const tokens: EmbeddedHandlebarsToken[] = [];
+function prepareEmbeddedSource(content: string) {
+  const spans: { start: number; end: number; replacement: string }[] = [];
   let position = 0;
-
   while (position < content.length) {
-    const start = content.indexOf('{{', position);
-    if (start === -1) {
-      break;
-    }
-
-    if (isEscapedEmbeddedHandlebarsOpen(content, start)) {
-      position = start + 2;
-      continue;
-    }
-
-    if (content.startsWith('{{{{', start)) {
-      const close = content.indexOf('}}}}', start + 4);
-      if (close === -1) {
-        return [{ start, end: content.length }];
-      }
-
-      tokens.push({ start, end: close + 4 });
-      position = close + 4;
-      continue;
-    }
-
-    const triple = content.startsWith('{{{', start);
-    const closeDelimiter = triple ? '}}}' : '}}';
-    const close = content.indexOf(closeDelimiter, start + (triple ? 3 : 2));
-    if (close === -1) {
-      return [{ start, end: content.length }];
-    }
-
-    tokens.push({ start, end: close + closeDelimiter.length });
-    position = close + closeDelimiter.length;
+    const start = templateDialect.findNextOpen(content, position);
+    if (start === -1) break;
+    const token = templateDialect.parseToken(content, start);
+    const raw = content.slice(start, token.end);
+    // Only intact value tags without whitespace-control or raw fragments.
+    // Dialect grammar remains here; the shared adapter validates JS context.
+    if (token.kind !== 'mustache' || token.triple || token.trimOpen || token.trimClose ||
+        token.end <= start || !raw.endsWith(templateDialect.closeDelimiter) ||
+        /["'\\`\r\n]/.test(raw) || content[start - 1] === '\\') return null;
+    spans.push({start, end: token.end, replacement: raw});
+    position = token.end;
   }
-
-  return tokens;
+  return createPlaceholderPlan(content, spans);
 }
 
-function isEscapedEmbeddedHandlebarsOpen(content: string, position: number): boolean {
-  let slashCount = 0;
-  for (let index = position - 1; index >= 0 && content[index] === '\\'; index -= 1) {
-    slashCount += 1;
-  }
-
-  return slashCount % 2 === 1;
-}
-
-function isUnsafeEmbeddedHandlebarsToken(content: string, token: EmbeddedHandlebarsToken): boolean {
-  const raw = content.slice(token.start, token.end);
-  if (raw.startsWith('{{{{')) {
-    return true;
-  }
-
-  const triple = raw.startsWith('{{{');
-  if ((triple && !raw.endsWith('}}}')) || (!triple && !raw.endsWith('}}'))) {
-    return true;
-  }
-
-  const openLength = triple ? 3 : 2;
-  const closeLength = triple ? 3 : 2;
-  const inner = raw.slice(openLength, -closeLength).trim().replace(/^~/, '').replace(/~$/, '').trim();
-
-  return (
-    inner === '' ||
-    inner === 'else' ||
-    inner.startsWith('else ') ||
-    /^[#/!>*<$]/.test(inner) ||
-    isStandaloneEmbeddedHandlebarsToken(content, token)
-  );
-}
-
-function isStandaloneEmbeddedHandlebarsToken(content: string, token: EmbeddedHandlebarsToken): boolean {
-  const lineStart = content.lastIndexOf('\n', token.start - 1) + 1;
-  const nextLineBreak = content.indexOf('\n', token.end);
-  const lineEnd = nextLineBreak === -1 ? content.length : nextLineBreak;
-
-  return content.slice(lineStart, token.start).trim() === '' && content.slice(token.end, lineEnd).trim() === '';
-}
-
-function hasMultilineBlockComment(content: string): boolean {
-  return /\/\*[\s\S]*?\n[\s\S]*?\*\//.test(content);
-}
-
-function getStaticAttributeValue(element: ElementNode, name: string): string | null {
-  const attr = element.attributes.find(
-    (candidate) => candidate.type === 'Attribute' && candidate.name.toLowerCase() === name,
-  );
-
-  if (!attr || attr.type !== 'Attribute') {
-    return null;
-  }
-
-  if (!attr.value) {
-    return '';
-  }
-
-  if (!attr.value.parts.every((part) => part.type === 'TextNode')) {
-    return null;
-  }
-
-  return attr.value.parts.map((part) => (part as TextNode).value).join('').trim().toLowerCase();
-}
-
-function hasPlainAttribute(element: ElementNode, name: string): boolean {
-  return element.attributes.some((attr) => attr.type === 'Attribute' && attr.name.toLowerCase() === name);
-}
-
-function isJavaScriptScriptType(type: string | null): boolean {
-  return (
-    !type ||
-    type === 'module' ||
-    type === 'text/javascript' ||
-    type === 'application/javascript' ||
-    type === 'text/ecmascript' ||
-    type === 'application/ecmascript'
-  );
-}
-
-function normalizeEmbeddedRawText(content: string): string {
-  const lines = trimSurroundingBlankLines(content.replace(/\r\n?/g, '\n').replace(/[ \t]+$/gm, '').split('\n'));
-  return stripCommonIndent(lines).join('\n');
-}
 
 function printProgram(path: AstPath<Program>, options: ParserOptions, print: (path: AstPath) => Doc): Doc {
   const parts: Doc[] = [];
@@ -1051,7 +821,7 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
     childrenDocs.push(print(childPath as AstPath<Node>));
   }, 'children');
 
-  const closeDoc = concat(['</', node.tag, '>']);
+  const closeDoc = node.rawText ? sourceToDoc(node.rawText.closing) : concat(['</', node.tag, '>']);
 
   if (shouldPreserveRawTextElement(node)) {
     return concat([openDoc, (node.children[0] as TextNode).value, closeDoc]);
@@ -1059,12 +829,8 @@ function printElement(path: AstPath<ElementNode>, options: ParserOptions, print:
 
   const singleChild = node.children.length === 1 ? node.children[0] : null;
 
-  if (
-    singleChild?.type === 'TextNode' &&
-    getEmbeddedRawTextParser(node, singleChild as TextNode, options) &&
-    childrenDocs.length === 1
-  ) {
-    return concat([openDoc, indent(concat([hardline, childrenDocs[0]])), hardline, closeDoc]);
+  if (singleChild?.type === 'TextNode' && isSingleRawTextChild(node, singleChild) && childrenDocs.length === 1) {
+    return [openDoc, childrenDocs[0], closeDoc];
   }
 
   const singleChildIsMustache = singleChild?.type === 'MustacheStatement';

@@ -51,7 +51,10 @@ const classicRootSpecs = [
   ['crisp'],
 ];
 
-const stressRootSpecs = [['Ghost', 'ghost', 'admin', 'app']];
+// Ghost moved Ember admin into apps/ember-admin; preserve the same stress scope.
+const stressRootSpecs = [fs.existsSync(path.join(corpusRoot, 'Ghost', 'apps', 'ember-admin', 'app'))
+  ? ['Ghost', 'apps', 'ember-admin', 'app']
+  : ['Ghost', 'ghost', 'admin', 'app']];
 
 const knownInvalidNonIdempotent = new Set([
   path.join(corpusRoot, 'hbs', 'test', '4.x', 'views', 'bad_layout.hbs'),

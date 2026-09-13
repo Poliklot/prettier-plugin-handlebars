@@ -52,6 +52,8 @@ export interface ElementNode extends SourceRange {
   attributes: ElementAttribute[];
   children: Node[];
   selfClosing: boolean;
+  /** Non-enumerable source metadata; not another traversable AST. */
+  rawText?: { closing: string };
 }
 
 export interface TextNode extends SourceRange {
