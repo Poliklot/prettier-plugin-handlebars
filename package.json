@@ -68,6 +68,6 @@
     "hbs-prettier-init": "dist/init-cli.js"
   },
   "dependencies": {
-    "template-format-core": "git+https://github.com/Poliklot/template-format-core.git#a4c907e5f69edf1444d57caa2c690650e5d197ff"
+    "template-format-core": "^0.2.0"
   }
 }

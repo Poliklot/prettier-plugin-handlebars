@@ -7,7 +7,7 @@
 | prettier-plugin-nunjucks | [#26](https://github.com/Poliklot/prettier-plugin-nunjucks/issues/26) | Nunjucks adapter and runtime regressions |
 | prettier-plugin-handlebars | [#81](https://github.com/Poliklot/prettier-plugin-handlebars/issues/81) | Handlebars adapter and runtime regressions |
 
-Each repository uses its own `refactor/shared-safe-embedding` branch. Consumer PRs must remain draft until core is reviewed, published, and their dependency points to the published registry version. A candidate source pin is for integration testing, not a final release dependency. No merge or publication is implied by green local tests.
+Each repository uses its own `refactor/shared-safe-embedding` branch. Core 0.2.0 is now published; consumers use the registry dependency `^0.2.0`, with the lock file resolving 0.2.0. Candidate source pins were used only for integration testing. Consumer PRs become ready after the registry dependency and local/remote checks have been verified; green local tests alone do not imply merge or publication.
 
 ## API boundary
 
@@ -47,6 +47,8 @@ The `test/shared-embedding.test.mjs` suite executes the language's real template
 
 Nunjucks/Handlebars adapters additionally keep dynamic JS strings in their original quote style: if the requested `singleQuote` preference conflicts, the body remains source rather than moving an unknown runtime value between quote contexts. This is an opt-in core policy; the Mustache extraction retains its existing 0.2.1 policy. The formatter is not an escaping/validation layer for arbitrary runtime values, custom helpers, lambdas, or CSS produced dynamically. Input escaping and runtime correctness remain the template author's responsibility.
 
-## Integration candidate
+## Published core dependency
 
-Depends on [template-format-core PR #3](https://github.com/Poliklot/template-format-core/pull/3), pinned to commit `a4c907e5f69edf1444d57caa2c690650e5d197ff` over HTTPS in package.json and package-lock.json. This is an integration-only source dependency. Keep this consumer PR in draft until core is reviewed and published, then replace the pin with that registry version and re-run installation, tests and package smoke checks. The prepublish guard rejects the source pin.
+Consumes [`template-format-core@0.2.0`](https://www.npmjs.com/package/template-format-core/v/0.2.0), implemented in [core PR #3](https://github.com/Poliklot/template-format-core/pull/3) and released through [core PR #4](https://github.com/Poliklot/template-format-core/pull/4). The registry package integrity matches the tested release tarball. package.json uses `^0.2.0`; package-lock.json resolves the registry tarball for 0.2.0. No Git or local-file core dependency is required. The prepublish guard remains in place to reject future source pins.
+
+Related consumer PRs: [Mustache #30](https://github.com/Poliklot/prettier-plugin-mustache/pull/30), [Nunjucks #28](https://github.com/Poliklot/prettier-plugin-nunjucks/pull/28), [Handlebars #82](https://github.com/Poliklot/prettier-plugin-handlebars/pull/82).
