@@ -54,9 +54,9 @@
     "prepublishOnly": "node scripts/check-core-release.mjs && npm run check"
   },
   "devDependencies": {
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.3",
     "handlebars": "^4.7.9",
-    "prettier": "^3.9.6",
+    "prettier": "^3.9.9",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },
