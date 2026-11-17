@@ -14,6 +14,8 @@ export type Node =
   | UnmatchedNode;
 
 export interface Program extends SourceRange {
+  /** Non-enumerable source data for whitespace-only branch bodies. */
+  rawWhitespace?: string;
   type: 'Program';
   body: Node[];
 }
@@ -54,6 +56,7 @@ export interface ElementNode extends SourceRange {
   selfClosing: boolean;
   /** Non-enumerable source metadata; not another traversable AST. */
   rawText?: { closing: string };
+  contentRange?: [number, number];
 }
 
 export interface TextNode extends SourceRange {
@@ -81,6 +84,7 @@ export interface MustacheBase {
 }
 
 export interface MustacheStatement extends MustacheBase, SourceRange {
+  ampersand?: boolean;
   type: 'MustacheStatement';
   triple: boolean;
 }
@@ -112,6 +116,8 @@ export interface DecoratorStatement extends MustacheBase, SourceRange {
 }
 
 export interface CommentStatement extends SourceRange {
+  trimOpen?: boolean;
+  trimClose?: boolean;
   type: 'CommentStatement';
   value: string;
   multiline: boolean;

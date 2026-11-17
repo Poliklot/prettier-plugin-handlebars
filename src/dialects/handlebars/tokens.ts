@@ -28,18 +28,18 @@ export const handlebarsDialect: TemplateDialect = {
 function parseHandlebarsToken(text: string, position: number): TemplateToken {
   const triple = text.startsWith('{{{', position);
   const openLength = triple ? 3 : 2;
-  const isBlockComment = text.startsWith('{{!--', position) || text.startsWith('{{{!--', position);
+  const isBlockComment = text.startsWith('!--', position + openLength + (text[position + openLength] === '~' ? 1 : 0));
   const close = triple ? '}}}' : '}}';
-  const closeDelimiter = isBlockComment ? `--${close}` : close;
+  const commentEnd = isBlockComment ? /--~?\}\}\}?/.exec(text.slice(position + openLength)) : null;
   const closeIdx = isBlockComment
-    ? text.indexOf(closeDelimiter, position + openLength)
-    : findHandlebarsClose(text, position + openLength, closeDelimiter);
-  const end = closeIdx >= 0 ? closeIdx + closeDelimiter.length : text.length;
+    ? (commentEnd ? position + openLength + commentEnd.index + commentEnd[0].length - close.length : -1)
+    : findHandlebarsClose(text, position + openLength, close);
+  const end = closeIdx >= 0 ? closeIdx + close.length : text.length;
   const rawContent = text.slice(position + openLength, closeIdx >= 0 ? closeIdx : undefined);
   const rawInner = rawContent.trim();
-  const trimOpen = rawInner.startsWith('~');
-  const trimClose = rawInner.endsWith('~');
-  const inner = rawInner.replace(/^~/, '').replace(/~$/, '').trim();
+  const trimOpen = rawContent.startsWith('~');
+  const trimClose = rawContent.endsWith('~');
+  const inner = rawContent.slice(trimOpen ? 1 : 0, trimClose ? -1 : undefined).trim();
 
   const baseToken = {
     rawContent,
@@ -52,7 +52,7 @@ function parseHandlebarsToken(text: string, position: number): TemplateToken {
   };
 
   if (inner.startsWith('!')) {
-    return { kind: 'comment', content: inner, name: undefined, ...baseToken };
+    return { kind: 'comment', content: isBlockComment ? inner.replace(/--$/, '').trimEnd() : inner, name: undefined, ...baseToken };
   }
 
   if (inner.startsWith('>')) {

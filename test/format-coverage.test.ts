@@ -66,27 +66,14 @@ describe('medium formatter coverage', () => {
   it('formats if-else blocks with nested child elements', async () => {
     await expectStableFormat(
       '{{#if user}}<span>{{ user.name }}</span>{{else}}<em>Guest</em>{{/if}}',
-      `
-        {{#if user}}
-          <span>
-            {{ user.name }}
-          </span>
-        {{else}}
-          <em>Guest</em>
-        {{/if}}
-      `,
+      `{{#if user}}<span>{{ user.name }}</span>{{else}}<em>Guest</em>{{/if}}`,
     );
   });
 
   it('keeps html comments on their own line inside elements', async () => {
     await expectStableFormat(
       '<div><!-- keep --><span>{{ value }}</span></div>',
-      `
-        <div>
-          <!-- keep -->
-          <span>{{ value }}</span>
-        </div>
-      `,
+      `<div><!-- keep --><span>{{ value }}</span></div>`,
     );
   });
 

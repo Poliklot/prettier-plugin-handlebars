@@ -201,13 +201,10 @@ export const readyCases: ConformanceCase[] = [
         <span>{{~ value ~}}</span>
       {{~/if~}}
     `),
-    expected: withTrailingNewline(`
-      {{~#if show ~}}
-        <span>
-          {{~ value ~}}
-        </span>
-      {{~/if~}}
-    `),
+    expected: `{{~#if show ~}}
+  <span>{{~ value ~}}</span>
+{{~/if~}}
+`,
   },
   {
     id: 'raw-blocks',
@@ -237,13 +234,10 @@ export const readyCases: ConformanceCase[] = [
         <main>{{ body }}</main>
       {{/layout}}
     `),
-    expected: withTrailingNewline(`
-      {{#> layout title=pageTitle}}
-        <main>
-          {{ body }}
-        </main>
-      {{/layout}}
-    `),
+    expected: `{{#> layout title=pageTitle}}
+  <main>{{ body }}</main>
+{{/layout}}
+`,
   },
   {
     id: 'malformed-block-partial-recovery',
@@ -272,14 +266,11 @@ export const readyCases: ConformanceCase[] = [
       {{/inline}}
       {{> badge}}
     `),
-    expected: withTrailingNewline(`
-      {{#*inline "badge"}}
-        <span class="badge">
-          {{ label }}
-        </span>
-      {{/inline}}
-      {{> badge}}
-    `),
+    expected: `{{#*inline "badge"}}
+  <span class="badge">{{ label }}</span>
+{{/inline}}
+{{> badge}}
+`,
   },
   {
     id: 'decorators',
@@ -293,14 +284,11 @@ export const readyCases: ConformanceCase[] = [
         <span>{{ label }}</span>
       {{/decorate}}
     `),
-    expected: withTrailingNewline(`
-      {{*log value level="debug"}}
-      {{#*decorate value=true}}
-        <span>
-          {{ label }}
-        </span>
-      {{/decorate}}
-    `),
+    expected: `{{*log value level="debug"}}
+{{#*decorate value=true}}
+  <span>{{ label }}</span>
+{{/decorate}}
+`,
   },
   {
     id: 'nested-block-indentation',
@@ -319,17 +307,16 @@ export const readyCases: ConformanceCase[] = [
       </li>
       {{/each}}
     `),
-    expected: withTrailingNewline(`
-      {{#each items}}
-        <li>
-          {{#if icon}}
-            lorem
-          {{else}}
-            ipsum
-          {{/if}}
-        </li>
-      {{/each}}
-    `),
+    expected: `{{#each items}}
+  <li>
+    {{#if icon}}
+lorem
+{{else}}
+ipsum
+{{/if}}
+  </li>
+{{/each}}
+`,
   },
   {
     id: 'blank-line-cap',

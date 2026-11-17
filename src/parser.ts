@@ -18,7 +18,7 @@ import { voidElements, rawTextElements, whitespaceSensitiveRawTextElements } fro
 import { locEnd, locStart, normalizeInput, withOptionalRange, withRange } from 'template-format-core';
 import { parseTemplateExpression } from 'template-format-core';
 import type { TemplateToken as MustacheToken } from 'template-format-core';
-import { whitespace } from 'template-format-core';
+import { whitespace, trimHtmlWhitespace } from 'template-format-core';
 import { handlebarsDialect } from './dialects/handlebars/tokens';
 
 export { locEnd, locStart };
@@ -28,6 +28,7 @@ interface ParseResult {
   position: number;
   endReason: ParseEndReason;
   endToken?: MustacheToken;
+  closeStart?: number;
 }
 
 const templateDialect = handlebarsDialect;
@@ -91,7 +92,7 @@ function parseChildren(
     const closeIdx = closeStart >= 0 ? (createHtmlBoundaryScanner(text).tagEnd(closeStart + 2 + endTag.length)?.end ?? text.length + 1) - 1 : -1;
     const nextPos = closeIdx >= 0 ? closeIdx + 1 : contentEnd;
 
-    return { nodes, position: nextPos, endReason: closeStart >= 0 ? 'tagClose' : null };
+    return { nodes, position: nextPos, endReason: closeStart >= 0 ? 'tagClose' : null, closeStart: contentEnd };
   }
 
   while (pos < text.length) {
@@ -110,9 +111,10 @@ function parseChildren(
     }
 
     if (endTag && text.startsWith(`</${endTag}`, pos)) {
+      const closeStart = pos;
       const closeIdx = text.indexOf('>', pos);
       pos = closeIdx >= 0 ? closeIdx + 1 : text.length;
-      return { nodes, position: pos, endReason: 'tagClose' };
+      return { nodes, position: pos, endReason: 'tagClose', closeStart };
     }
 
     if (startsTemplateTag(text, pos)) {
@@ -213,7 +215,7 @@ function parseChildren(
       }
 
       if (token.kind === 'comment') {
-        nodes.push(createComment(token.rawContent, rangeOffset + pos, rangeOffset + token.end));
+        nodes.push(createComment(token.rawContent, rangeOffset + pos, rangeOffset + token.end, token.trimOpen, token.trimClose));
         pos = token.end;
         continue;
       }
@@ -272,8 +274,9 @@ function parseChildren(
 
       if (tagResult.kind === 'close') {
         if (endTag && tagResult.tag === endTag) {
+          const closeStart = pos;
           pos = tagResult.end;
-          return { nodes, position: pos, endReason: 'tagClose' };
+          return { nodes, position: pos, endReason: 'tagClose', closeStart };
         }
 
         nodes.push(
@@ -324,6 +327,7 @@ function parseChildren(
         nodes: children,
         position: newPos,
         endReason: childEndReason,
+        closeStart,
       } = parseChildren(text, tagResult.end, tagResult.tag, null, rangeOffset);
       if (childEndReason !== 'tagClose') {
         nodes.push(createUnmatchedNode(text, pos, newPos));
@@ -344,6 +348,9 @@ function parseChildren(
           rangeOffset + newPos,
         ),
       );
+      Object.defineProperty(nodes[nodes.length - 1], 'contentRange', {
+        value: [rangeOffset + tagResult.end, rangeOffset + (closeStart ?? newPos)], enumerable: false,
+      });
       if (['script', 'style'].includes(tagResult.tag.toLowerCase()) && children.length === 1 && children[0].type === 'TextNode') {
         const bodyEnd = children[0].range![1] - rangeOffset;
         Object.defineProperty(nodes[nodes.length - 1], 'rawText', {
@@ -357,14 +364,14 @@ function parseChildren(
     // Text node until next markup
     const nextMarkup = findNextMarkup(text, pos);
     const rawValue = text.slice(pos, nextMarkup);
-    const trimmed = rawValue.trim();
+    const trimmed = trimHtmlWhitespace(rawValue);
     if (trimmed.length > 0) {
       const node: TextNode = {
         type: 'TextNode',
         value: trimmed,
       };
-      const leadingWhitespace = rawValue.match(/^\s*/)?.[0] ?? '';
-      const trailingWhitespace = rawValue.match(/\s*$/)?.[0] ?? '';
+      const leadingWhitespace = rawValue.slice(0, rawValue.indexOf(trimmed));
+      const trailingWhitespace = rawValue.slice(leadingWhitespace.length + trimmed.length);
 
       if (leadingWhitespace) {
         node.leadingWhitespace = leadingWhitespace;
@@ -434,9 +441,15 @@ function parseBlock(
     openInfo.path,
     rangeOffset,
   );
-  const buildProgram = (nodes: Node[], start: number, end: number): Program =>
-    withRange({ type: 'Program', body: trimEdgeWhitespace(nodes) }, rangeOffset + start, rangeOffset + end);
-  const programBody = buildProgram(program, token.end, afterProgram);
+  const buildProgram = (nodes: Node[], start: number, end: number): Program => {
+    const program = withRange({ type: 'Program' as const, body: trimEdgeWhitespace(nodes) }, rangeOffset + start, rangeOffset + end);
+    const raw = text.slice(start, end);
+    if (raw && trimHtmlWhitespace(raw) === '') {
+      Object.defineProperty(program, 'rawWhitespace', { value: raw, enumerable: false });
+    }
+    return program;
+  };
+  const programBody = buildProgram(program, token.end, endToken?.start ?? afterProgram);
 
   let inverseBody: Program = withRange(
     { type: 'Program', body: [] },
@@ -467,7 +480,7 @@ function parseBlock(
         withRange(
           {
             type: 'ElseBranch',
-            program: buildProgram(branchNodes, currentElseToken.end, afterBranch),
+            program: buildProgram(branchNodes, currentElseToken.end, branchEndToken?.start ?? afterBranch),
             trimOpen: currentElseToken.trimOpen,
             trimClose: currentElseToken.trimClose,
             ...branchExpression,
@@ -498,7 +511,7 @@ function parseBlock(
         endReason: inverseEndReason,
         endToken: inverseEndToken,
       } = parseChildren(text, currentPosition, null, openInfo.path, rangeOffset);
-      inverseBody = buildProgram(inverseNodes, currentElseToken.end, afterInverse);
+      inverseBody = buildProgram(inverseNodes, currentElseToken.end, inverseEndToken?.start ?? afterInverse);
       finalPos = afterInverse;
       closeToken = inverseEndReason === 'blockEnd' ? inverseEndToken : undefined;
     }
@@ -690,7 +703,7 @@ function parseTag(text: string, position: number):
       if (token.kind === 'comment') {
         attributes.push({
           type: 'AttributeBlock',
-          block: createComment(token.rawContent, pos, token.end),
+          block: createComment(token.rawContent, pos, token.end, token.trimOpen, token.trimClose),
         });
         pos = token.end;
         continue;
@@ -1055,7 +1068,7 @@ function parseAttributeValueParts(
 
       // комментарий
       if (token.kind === 'comment') {
-        parts.push(createComment(token.rawContent, rangeOffset + pos, rangeOffset + token.end));
+        parts.push(createComment(token.rawContent, rangeOffset + pos, rangeOffset + token.end, token.trimOpen, token.trimClose));
         pos = token.end;
         continue;
       }
@@ -1457,8 +1470,10 @@ function createMustache(
   start?: number,
   end?: number,
 ): MustacheStatement {
-  const expression = parseTemplateExpression(content);
+  const ampersand = !triple && content.startsWith('&');
+  const expression = parseTemplateExpression(ampersand ? content.slice(1).trimStart() : content);
   const node: MustacheStatement = {
+    ...(ampersand ? { ampersand } : {}),
     type: 'MustacheStatement',
     triple,
     ...expression,
@@ -1511,7 +1526,9 @@ function createDecorator(content: string, trimOpen = false, trimClose = false, s
   return withOptionalRange(node, start, end);
 }
 
-function createComment(content: string, start?: number, end?: number): CommentStatement {
+function createComment(content: string, start?: number, end?: number, trimOpen = false, trimClose = false): CommentStatement {
+  if (trimOpen) content = content.slice(1);
+  if (trimClose) content = content.slice(0, -1);
   const isBlockStyle = /^\s*!-{2}/.test(content);
   const withoutOpen = content.replace(/^[\t ]*!-{0,2}/, '');
   const withoutClosing = withoutOpen.replace(/-{2}\s*$/, '');
@@ -1524,6 +1541,8 @@ function createComment(content: string, start?: number, end?: number): CommentSt
 
   return withOptionalRange({
     type: 'CommentStatement',
+    ...(trimOpen ? { trimOpen } : {}),
+    ...(trimClose ? { trimClose } : {}),
     value,
     multiline: isMultiline,
     block: isBlockStyle || isMultiline,

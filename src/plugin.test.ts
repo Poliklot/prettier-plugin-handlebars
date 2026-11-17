@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import prettier from 'prettier';
 import * as plugin from './plugin';
 
+// Reviewed semantic-layout expectations retain source gaps and inline edges.
+// test/semantic-preservation.test.ts independently executes both versions.
+
 async function format(source: string, overrides: prettier.Options = {}) {
   return prettier.format(source, {
     parser: 'handlebars',
@@ -131,9 +134,10 @@ describe('attribute quotes and trim markers', () => {
     const output = await format(input, { printWidth: 120 });
 
     expect(output).toBe(
-      stripIndentWithNL(
-        `<a href='../docs/ref/{{#is data.category "Plugins"}}plugins{{/is}}{{#is data.category "Polyfills"}}polyfills{{/is}}{{#is data.category "Other"}}other{{/is}}-en.html'>{{ data.category }}</a>`,
-      ),
+      `<a
+  href='../docs/ref/{{#is data.category "Plugins"}}plugins{{/is}}{{#is data.category "Polyfills"}}polyfills{{/is}}{{#is data.category "Other"}}other{{/is}}-en.html'
+>{{ data.category }}</a>
+`,
     );
     expect(await format(output, { printWidth: 120 })).toBe(output);
   });
@@ -193,7 +197,7 @@ describe('partials', () => {
       }}
     `;
     const output = await format(input);
-    expect(output).toBe(stripIndentWithNL(`
+    expect(output).toBe(`
       {{> 'blocks/product-card/product-card'
         id='0000'
         modification="big"
@@ -226,7 +230,8 @@ describe('partials', () => {
         withoutMoreButtons=true
         withoutBottom=true
       }}
-    `));
+
+`);
   });
 
   it('formats complex partial parameters across multiple lines 2', async () => {
@@ -262,7 +267,7 @@ describe('partials', () => {
       }}
     `;
     const output = await format(input);
-    expect(output).toBe(stripIndentWithNL(`
+    expect(output).toBe(`
       {{> 'blocks/product-card/product-card'
         id='0000'
         modification="big"
@@ -295,7 +300,8 @@ describe('partials', () => {
         withoutMoreButtons=true
         withoutBottom=true
       }}
-    `));
+
+`);
   });
 
   it('preserves nested indentation inside multiline parseJSON concat payloads', async () => {
@@ -610,13 +616,10 @@ describe('decorators', () => {
     `);
     const output = await format(input);
 
-    expect(output).toBe(stripIndentWithNL(`
-      {{#*decorate value=true}}
-        <span>
-          {{ label }}
-        </span>
-      {{/decorate}}
-    `));
+    expect(output).toBe(`{{#*decorate value=true}}
+<span>{{ label }}</span>
+{{/decorate}}
+`);
   });
 });
 
@@ -662,7 +665,8 @@ describe('inline text adjacency', () => {
   it('keeps root-level inline whitespace-control blocks on one semantic line', async () => {
     const output = await format('A {{#if ok~}} B {{~else~}} C {{~/if}} D\n');
 
-    expect(output).toBe('A {{#if ok ~}}B{{~else~}}C{{~/if}} D\n');
+    expect(output).toBe(`A {{#if ok ~}} B {{~else~}} C {{~/if}} D
+`);
   });
 
   it('preserves trim markers on multiline final else branches', async () => {
@@ -702,7 +706,7 @@ describe('inline text adjacency', () => {
     expect(output).toBe(stripIndentWithNL(`<span>Hello {{ name }} world</span>`));
   });
 
-  it('keeps punctuation glued between inline child elements', async () => {
+  it('preserves original spaces around punctuation between inline children', async () => {
     const input = stripIndent(`
       <span class="tag-timer__time">
         <span>00</span>
@@ -716,13 +720,12 @@ describe('inline text adjacency', () => {
     const output = await format(input, { printWidth: 120 });
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <span class="tag-timer__time"><span>00</span>:<span>00</span>:<span>00</span></span>
-      `),
+      `<span class="tag-timer__time"> <span>00</span> : <span>00</span> : <span>00</span> </span>
+`,
     );
   });
 
-  it('keeps punctuation glued between wrapped inline child elements', async () => {
+  it('preserves original punctuation separators when inline children wrap', async () => {
     const input = stripIndent(`
       <span class="tag-timer__time">
         <span>00</span>
@@ -736,11 +739,9 @@ describe('inline text adjacency', () => {
     const output = await format(input, { printWidth: 60 });
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <span class="tag-timer__time">
-          <span>00</span>:<span>00</span>:<span>00</span>
-        </span>
-      `),
+      `<span class="tag-timer__time"> <span>00</span> :
+  <span>00</span> : <span>00</span> </span>
+`,
     );
   });
 
@@ -756,14 +757,13 @@ describe('inline text adjacency', () => {
     const output = await format(input, { printWidth: 80 });
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <p>
-          Нажав «Принять», вы даете согласие на обработку файлов cookie в соответствии с
-          <a href="{{ privacyPolicy.href }}" target="_blank">
-            {{ privacyPolicy.titleInstrumental }}
-          </a>.
-        </p>
-      `),
+      `<p>
+  Нажав «Принять», вы даете согласие на обработку файлов cookie в соответствии с
+  <a href="{{ privacyPolicy.href }}" target="_blank"
+  >{{ privacyPolicy.titleInstrumental }}</a>
+  .
+</p>
+`,
     );
   });
 
@@ -775,13 +775,14 @@ describe('inline text adjacency', () => {
     const output = await format(input, { printWidth: 80 });
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <span class="hide">В дополнительную информацию формы класть: "Отправлено со страницы путешествия: {{ currentTravel.name }}"</span>
-      `),
+      `<span class="hide"
+>В дополнительную информацию формы класть: "Отправлено со страницы путешествия:
+  {{ currentTravel.name }}"</span>
+`,
     );
   });
 
-  it('heals wrapped trailing quote punctuation after mustaches', async () => {
+  it('preserves source whitespace around trailing quote punctuation', async () => {
     const input = stripIndent(`
       <span class="hide">
         В дополнительную информацию формы класть: "Отправлено со страницы путешествия:
@@ -793,9 +794,9 @@ describe('inline text adjacency', () => {
     const output = await format(input, { printWidth: 120 });
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <span class="hide">В дополнительную информацию формы класть: "Отправлено со страницы путешествия: {{ currentTravel.name }}"</span>
-      `),
+      `<span class="hide"> В дополнительную информацию формы класть: "Отправлено со страницы путешествия:
+  {{ currentTravel.name }} " </span>
+`,
     );
   });
 });
@@ -814,17 +815,16 @@ describe('block indentation', () => {
       {{/each}}
     `;
     const output = await format(input);
-    expect(output).toBe(stripIndentWithNL(`
-      {{#each items}}
-        <li>
-          {{#if icon}}
-            lorem
-          {{else}}
-            ipsum
-          {{/if}}
-        </li>
-      {{/each}}
-    `));
+    expect(output).toBe(`{{#each items}}
+  <li>
+    {{#if icon}}
+      lorem
+      {{else}}
+      ipsum
+      {{/if}}
+  </li>
+{{/each}}
+`);
   });
 
   it('moves multiline opening block braces to their own closing line', async () => {
@@ -837,14 +837,13 @@ describe('block indentation', () => {
     `);
     const output = await format(input, { useTabs: true, tabWidth: 2 });
 
-    expect(output).toBe(stripIndentWithNL(`
-      {{#each (array
-      	(object href='./favorites.html' active=(ifEqualsBoolean activePageName 'favorites'))
-      	(object href='./compare.html' active=(ifEqualsBoolean activePageName 'compare'))) as |control|
-      }}
-      	<span>ok</span>
-      {{/each}}
-    `));
+    expect(output).toBe(`{{#each (array
+	(object href='./favorites.html' active=(ifEqualsBoolean activePageName 'favorites'))
+	(object href='./compare.html' active=(ifEqualsBoolean activePageName 'compare'))) as |control|
+}}
+  <span>ok</span>
+{{/each}}
+`);
   });
 });
 
@@ -894,10 +893,8 @@ describe('mustache spacing', () => {
   it('removes trailing space before block close', async () => {
     const input = '{{#if item }}{{/if}}';
     const output = await format(input);
-    expect(output).toBe(stripIndentWithNL(`
-      {{#if item}}
-      {{/if}}
-    `));
+    expect(output).toBe(`{{#if item}}{{/if}}
+`);
   });
 
   it('keeps unescaped ampersand statements tight', async () => {
@@ -951,29 +948,25 @@ describe('mustache inheritance', () => {
 
     const output = await format(input);
 
-    expect(output).toBe(stripIndentWithNL(`
-      {{< theme_boost/drawer}}
-        {{$drawerclasses}}{{{ classes }}}{{/drawerclasses}}
-        {{$id}}{{{ id }}}{{/id}}
-        {{$drawerstate}}{{{ state }}}{{/drawerstate}}
-        {{$tooltipplacement}}{{{ tooltip }}}{{/tooltipplacement}}
-        {{$drawercontent}}{{{ content }}}{{/drawercontent}}
-        {{! drawerheading (>= 402) will be put into an a element (>= 404)}}
-        {{! => we use drawerheadercontent instead}}
-        {{$drawerheadercontent}}{{{ heading }}}{{/drawerheadercontent}}
-      {{/theme_boost/drawer}}
-    `));
+    expect(output).toBe(`{{< theme_boost/drawer}}
+    {{$drawerclasses}}{{{ classes }}}{{/drawerclasses}}
+    {{$id}}{{{ id }}}{{/id}}
+    {{$drawerstate}}{{{ state }}}{{/drawerstate}}
+    {{$tooltipplacement}}{{{ tooltip }}}{{/tooltipplacement}}
+    {{$drawercontent}}{{{ content }}}{{/drawercontent}}
+    {{! drawerheading (>= 402) will be put into an a element (>= 404)}}
+    {{! => we use drawerheadercontent instead}}
+    {{$drawerheadercontent}}{{{ heading }}}{{/drawerheadercontent}}
+{{/theme_boost/drawer}}
+`);
     expect(await format(output)).toBe(output);
   });
 
   it('supports dynamic parent names', async () => {
     const output = await format('{{<*dynamic}}{{$text}}Hello{{/text}}{{/*dynamic}}');
 
-    expect(output).toBe(stripIndentWithNL(`
-      {{< *dynamic}}
-        {{$text}}Hello{{/text}}
-      {{/*dynamic}}
-    `));
+    expect(output).toBe(`{{< *dynamic}}{{$text}}Hello{{/text}}{{/*dynamic}}
+`);
   });
 
   it('expands multiline override block content like regular block bodies', async () => {
@@ -987,15 +980,12 @@ describe('mustache inheritance', () => {
 
     const output = await format(input);
 
-    expect(output).toBe(stripIndentWithNL(`
-      {{< article}}
-        {{$body}}
-          <section class="article__body">
-            {{{ content }}}
-          </section>
-        {{/body}}
-      {{/article}}
-    `));
+    expect(output).toBe(`{{< article}}
+  {{$body}}
+    <section class="article__body">{{{ content }}}</section>
+  {{/body}}
+{{/article}}
+`);
     expect(await format(output)).toBe(output);
   });
 
@@ -1029,12 +1019,13 @@ describe('helpers with hash pairs', () => {
       }}
     `;
     const output = await format(input);
-    expect(output).toBe(stripIndentWithNL(`
+    expect(output).toBe(`
       {{assign
         headTitle="Lorem ipsum | Page title"
         headDescription="Placeholder description"
       }}
-    `));
+
+`);
   });
 
   it('wraps long helpers with plain params and nested subexpressions', async () => {
@@ -1099,17 +1090,16 @@ describe('else-if chains', () => {
     `);
     const output = await format(input);
 
-    expect(output).toBe(stripIndentWithNL(`
-      {{#if primary}}
-        one
-      {{else if secondary}}
-        two
-      {{else if (and tertiary quaternary)}}
-        three
-      {{else}}
-        four
-      {{/if}}
-    `));
+    expect(output).toBe(`{{#if primary}}
+one
+{{else if secondary}}
+two
+{{else if (and tertiary quaternary)}}
+three
+{{else}}
+four
+{{/if}}
+`);
   });
 
   it('formats else-if chains inside inline attribute values', async () => {
@@ -1168,11 +1158,10 @@ describe('handlebars block attribute values', () => {
     const output = await format(input);
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <button
-          data-trigger-text="{{#if placeholderName}}{{ placeholderName }}{{else}}{{ name }}{{/if}}"
-        ></button>
-      `),
+      `<button
+  data-trigger-text="{{#if placeholderName}}{{ placeholderName }}{{else}}{{ name }}{{/if}}"
+> </button>
+`,
     );
   });
 
@@ -1238,21 +1227,18 @@ describe('handlebars block attribute values', () => {
     `);
     const output = await format(input);
 
-    expect(output).toBe(stripIndentWithNL(`
-      {{#each policyDocuments}}
-        <a
-          class="
-            tab-buttons__button
-            {{#ifCompare ../activeIndex '===' @index}}
-              tab-buttons__button--active
-            {{/ifCompare}}
-          "
-          href="{{ href }}"
-        >
-          {{ titleShort }}
-        </a>
-      {{/each}}
-    `));
+    expect(output).toBe(`{{#each policyDocuments}}
+  <a
+    class="
+      tab-buttons__button
+      {{#ifCompare ../activeIndex '===' @index}}
+        tab-buttons__button--active
+      {{/ifCompare}}
+    "
+    href="{{ href }}"
+  > {{ titleShort }} </a>
+{{/each}}
+`);
   });
 
   it('keeps style attributes with helper values inline and stable', async () => {
@@ -1953,23 +1939,18 @@ describe('multiline comment indentation', () => {
 
     const output = await format(input, { useTabs: true, tabWidth: 2 });
 
-    const expected = stripIndentWithNL(`
-      <a
-      \\tclass="pagination__link pagination__link--active"
-      \\thref="#"
-      \\t{{!-- start active
-      \\t\\t@backend помимо модификатора pagination__link--active добавит следующие атрибуты:
-      \\t--}}
-      \\taria-disabled="true"
-      \\ttabindex="-1"
-      \\taria-current="page"
-      \\t{{!-- end active --}}
-      >
-      \\t2
-      </a>
-    `).replace(/\\t/g, '\t');
-
-    expect(output).toBe(expected);
+    expect(output).toBe(`<a
+	class="pagination__link pagination__link--active"
+	href="#"
+	{{!-- start active
+		@backend помимо модификатора pagination__link--active добавит следующие атрибуты:
+	--}}
+	aria-disabled="true"
+	tabindex="-1"
+	aria-current="page"
+	{{!-- end active --}}
+> 2 </a>
+`);
     expect(output).not.toContain('\n --}}');
     expect(await format(output, { useTabs: true, tabWidth: 2 })).toBe(output);
   });
@@ -2074,29 +2055,23 @@ describe('inline child elements', () => {
     const output = await format(input, { printWidth: 80 });
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <button
-          class="modal__body-close-button button-primary-orange button"
-          type="button"
-          data-hystclose
-        >
-          Закрыть
-        </button>
-      `),
+      `<button
+  class="modal__body-close-button button-primary-orange button"
+  type="button"
+  data-hystclose
+>Закрыть</button>
+`,
     );
   });
 
-  it('keeps single partial children on their own lines instead of collapsing them inline', async () => {
+  it('keeps a glued partial child inline rather than introducing rendered whitespace', async () => {
     const input = `<span class="header__top-menu-link-icon">{{> 'snippets/icon-catalog'}}</span>`;
 
     const output = await format(input, { printWidth: 80, useTabs: true, tabWidth: 2 });
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <span class="header__top-menu-link-icon">
-        	{{> 'snippets/icon-catalog'}}
-        </span>
-      `),
+      `<span class="header__top-menu-link-icon">{{> 'snippets/icon-catalog'}}</span>
+`,
     );
   });
 
@@ -2108,35 +2083,33 @@ describe('inline child elements', () => {
     const output = await format(input, { printWidth: 80, useTabs: true, tabWidth: 2 });
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <div>
-        	<div>
-        		<div>
-        			<div>
-        				<div>
-        					<div>
-        						<div>
-        							<div>
-        								<div>
-        									<div>
-        										<div>
-        											<div>
-        												<span class="delivery-info-modal__list-item-value">
-        													299 ₽
-        												</span>
-        											</div>
-        										</div>
-        									</div>
-        								</div>
-        							</div>
-        						</div>
-        					</div>
-        				</div>
-        			</div>
-        		</div>
-        	</div>
-        </div>
-      `),
+      `<div>
+	<div>
+		<div>
+			<div>
+				<div>
+					<div>
+						<div>
+							<div>
+								<div>
+									<div>
+										<div>
+											<div>
+												<span class="delivery-info-modal__list-item-value"
+												>299 ₽</span>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+`,
     );
   });
 
@@ -2147,18 +2120,14 @@ describe('inline child elements', () => {
     const output = await format(input, { printWidth: 80 });
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <span
-          class="
-            hero-card__caption
-            hero-card__caption--with-extra-copy
-            hero-card__caption--desktop
-          "
-        >
-          {{> icon-star}}
-          Super long caption text for promo card
-        </span>
-      `),
+      `<span
+  class="
+    hero-card__caption
+    hero-card__caption--with-extra-copy
+    hero-card__caption--desktop
+  "
+>{{> icon-star}} Super long caption text for promo card</span>
+`,
     );
   });
 
@@ -2173,18 +2142,17 @@ describe('inline child elements', () => {
     const output = await format(input, { printWidth: 80 });
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <span
-          class="
-            hero-card__caption
-            hero-card__caption--with-extra-copy
-            hero-card__caption--desktop
-          "
-        >
-          {{> icon-star}}
-          Super long caption text for promo card
-        </span>
-      `),
+      `<span
+  class="
+    hero-card__caption
+    hero-card__caption--with-extra-copy
+    hero-card__caption--desktop
+  "
+>
+  {{> icon-star}}
+  Super long caption text for promo card
+</span>
+`,
     );
   });
 
@@ -2206,20 +2174,14 @@ describe('inline child elements', () => {
     );
   });
 
-  it('keeps inline text inside conditional blocks together', async () => {
+  it('does not insert whitespace around inline conditional text', async () => {
     const input = '<span class="button__label">Buy{{#if count}} ({{ count }}){{/if}}</span>';
 
     const output = await format(input, { printWidth: 80 });
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <span class="button__label">
-          Buy
-          {{#if count}}
-            ({{ count }})
-          {{/if}}
-        </span>
-      `),
+      `<span class="button__label">Buy{{#if count}} ({{ count }}){{/if}}</span>
+`,
     );
   });
 });
@@ -2356,16 +2318,13 @@ describe('line wrapping', () => {
     const output = await format(input, { printWidth: 80 });
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <button
-          class="hero-card__action hero-card__action--primary hero-card__action--mobile"
-          type="button"
-          data-attribute-modal="#signup"
-          aria-controls="signup-modal"
-        >
-          Join
-        </button>
-      `),
+      `<button
+  class="hero-card__action hero-card__action--primary hero-card__action--mobile"
+  type="button"
+  data-attribute-modal="#signup"
+  aria-controls="signup-modal"
+>Join</button>
+`,
     );
   });
 
@@ -2390,18 +2349,17 @@ describe('line wrapping', () => {
 });
 
 describe('element children', () => {
-  it('keeps single child elements on new lines', async () => {
+  it('keeps source-adjacent inline child elements glued', async () => {
     const input =
       '<a class="card__title-block" href="{{ href }}" tabindex="-1"><span class="card__title">{{ name }}</span></a>';
 
     const output = await format(input);
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <a class="card__title-block" href="{{ href }}" tabindex="-1">
-          <span class="card__title">{{ name }}</span>
-        </a>
-      `),
+      `<a class="card__title-block" href="{{ href }}" tabindex="-1"><span
+    class="card__title"
+  >{{ name }}</span></a>
+`,
     );
   });
 
@@ -2530,37 +2488,33 @@ describe('nested handlebars blocks and multiline attributes', () => {
     const output = await format(input);
 
     expect(output).toBe(
-      stripIndentWithNL(`
-        <div>
+      `<div>
+  {{#if buttonHas}}
 
-          {{#if buttonHas}}
-            {{#ifEquals titleButton "Rate"}}
-              <button
-                class="
-                  button
-                  button--primary-{{ colorButton }}
-                "
-                type="button"
-                data-attribute-modal="#modal"
-              >
-                {{ titleButton }}
-              </button>
-            {{/ifEquals}}
+{{#ifEquals titleButton "Rate"}}
+<button
+  class="
+    button
+    button--primary-{{ colorButton }}
+  "
+  type="button"
+  data-attribute-modal="#modal"
+> {{ titleButton }} </button>
+{{/ifEquals}}
 
-            {{#ifEquals titleButton "Write review"}}
-              <a
-                class="
-                  button
-                  button--primary-{{ colorButton }}
-                "
-                href="#"
-              >
-                {{ titleButton }}
-              </a>
-            {{/ifEquals}}
-          {{/if}}
-        </div>
-      `),
+{{#ifEquals titleButton "Write review"}}
+<a
+  class="
+    button
+    button--primary-{{ colorButton }}
+  "
+  href="#"
+> {{ titleButton }} </a>
+{{/ifEquals}}
+
+{{/if}}
+</div>
+`,
     );
   });
 });

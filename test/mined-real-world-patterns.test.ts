@@ -368,13 +368,7 @@ describe('formatter coverage from mined anonymized patterns', () => {
   it('formats custom block helpers with quoted operator params and this references', async () => {
     await expectStableFormat(
       "{{#ifCompare @index '<' '2'}}<span>{{ this }}</span>{{/ifCompare}}",
-      `
-        {{#ifCompare @index '<' '2'}}
-          <span>
-            {{ this }}
-          </span>
-        {{/ifCompare}}
-      `,
+      `{{#ifCompare @index '<' '2'}}<span>{{ this }}</span>{{/ifCompare}}`,
     );
   });
 
@@ -613,19 +607,13 @@ describe('dynamic tags and tag-switching coverage from mined patterns', () => {
   it('formats conditional tag-switching around shared content as sibling boundary blocks', async () => {
     await expectStableFormat(
       '{{#unless flagA}}<a href="{{ hrefA }}" class="box-a__title">{{else}}<p class="box-a__title">{{/unless}}<span>{{ nameA }}</span>{{#unless flagA}}</a>{{else}}</p>{{/unless}}',
-      `
-        {{#unless flagA}}
-          <a href="{{ hrefA }}" class="box-a__title">
-        {{else}}
-          <p class="box-a__title">
-        {{/unless}}
-        <span>{{ nameA }}</span>
-        {{#unless flagA}}
-          </a>
-        {{else}}
-          </p>
-        {{/unless}}
-      `,
+      `{{#unless flagA}}
+  <a href="{{ hrefA }}" class="box-a__title">
+{{else}}
+  <p class="box-a__title">
+{{/unless}}
+<span>{{ nameA }}</span>
+{{#unless flagA}}</a>{{else}}</p>{{/unless}}`,
     );
   });
 });
@@ -888,71 +876,61 @@ describe('full document and compound attribute coverage from mined patterns', ()
   it('formats button modifiers with helper-driven disabled and tabindex attributes', async () => {
     await expectStableFormat(
       `<button type="button" class="box-a__button {{#if (eq stateA.text 'X')}}button-b{{else}}button-a{{/if}} button {{#if inA}}box-a__button--hide{{/if}}" aria-label="ActionA" {{#if disabledA}}disabled tabIndex="-1"{{/if}} {{#if inA}}tabIndex="-1"{{/if}}>{{> 'icon-a'}}</button><input class="box-a__input" value="{{#if inA}}{{inA}}{{else}}1{{/if}}">`,
-      `
-        <button
-          class="
-            box-a__button
-            {{#if (eq stateA.text 'X')}}
-              button-b
-            {{else}}
-              button-a
-            {{/if}}
-            button
-            {{#if inA}}
-              box-a__button--hide
-            {{/if}}
-          "
-          type="button"
-          aria-label="ActionA"
-          {{#if disabledA}}
-            disabled tabIndex="-1"
-          {{/if}}
-          {{#if inA}}
-            tabIndex="-1"
-          {{/if}}
-        >
-          {{> 'icon-a'}}
-        </button>
-        <input
-          class="box-a__input"
-          value="{{#if inA}}{{ inA }}{{else}}1{{/if}}"
-        />
-      `,
+      `<button
+  class="
+    box-a__button
+    {{#if (eq stateA.text 'X')}}
+      button-b
+    {{else}}
+      button-a
+    {{/if}}
+    button
+    {{#if inA}}
+      box-a__button--hide
+    {{/if}}
+  "
+  type="button"
+  aria-label="ActionA"
+  {{#if disabledA}}
+    disabled tabIndex="-1"
+  {{/if}}
+  {{#if inA}}
+    tabIndex="-1"
+  {{/if}}
+>{{> 'icon-a'}}</button>
+<input
+  class="box-a__input"
+  value="{{#if inA}}{{ inA }}{{else}}1{{/if}}"
+/>`,
     );
   });
 
   it('formats full documents with root-level setVar helpers and custom elements', async () => {
     await expectStableFormat(
       `<!doctype html><html lang="x"><head><meta charset="utf-8" /><title>{{ projectA }}</title></head>{{setVar "listA" (parseJSON '[{"name":"A","href":"/a"},{"name":"B","items":[{"name":"C","href":"/c"}]}]')}}<body class="page-a"><ul>{{#each listA}}<li>{{#if items}}<bm-accordion><div class="acc-a__head"><button type="button">{{ name }}</button></div></bm-accordion>{{else}}<a href="{{ href }}">{{ name }}</a>{{/if}}</li>{{/each}}</ul></body></html>`,
-      `
-        <!doctype html>
-        <html lang="x">
-          <head>
-            <meta charset="utf-8" />
-            <title>{{ projectA }}</title>
-          </head>
-          {{setVar "listA" (parseJSON '[{"name":"A","href":"/a"},{"name":"B","items":[{"name":"C","href":"/c"}]}]')}}
-          <body class="page-a">
-            <ul>
-              {{#each listA}}
-                <li>
-                  {{#if items}}
-                    <bm-accordion>
-                      <div class="acc-a__head">
-                        <button type="button">{{ name }}</button>
-                      </div>
-                    </bm-accordion>
-                  {{else}}
-                    <a href="{{ href }}">
-                      {{ name }}
-                    </a>
-                  {{/if}}
-                </li>
-              {{/each}}
-            </ul>
-          </body>
-        </html>
-      `,
+      `<!doctype html>
+<html lang="x">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ projectA }}</title>
+  </head>
+  {{setVar "listA" (parseJSON '[{"name":"A","href":"/a"},{"name":"B","items":[{"name":"C","href":"/c"}]}]')}}
+  <body class="page-a">
+    <ul>
+      {{#each listA}}
+        <li>
+          {{#if items}}
+            <bm-accordion>
+              <div class="acc-a__head">
+                <button type="button">{{ name }}</button>
+              </div>
+            </bm-accordion>
+          {{else}}<a href="{{ href }}">{{ name }}</a>{{/if}}
+        </li>
+      {{/each}}
+    </ul>
+  </body>
+</html>`,
     );
   });
 });
