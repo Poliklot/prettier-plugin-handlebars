@@ -14,6 +14,13 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 * Preserve exact raw source on disabled/rejected embedding; retain required dynamic JS key quotes, expression grouping, literal markers and string whitespace. Unquoted template fragments may now select conservative fallback.
 * See `docs/shared-embedding.md` and Poliklot/template-format-core#2 for the coordinated dependency and release gates.
 
+## [0.4.2](https://github.com/Poliklot/prettier-plugin-handlebars/compare/prettier-plugin-handlebars-v0.4.1...prettier-plugin-handlebars-v0.4.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* сохранён результат выполнения шаблонов Handlebars ([981f20c](https://github.com/Poliklot/prettier-plugin-handlebars/commit/981f20c90c1dce857f04232c67afc67ed0e423f3))
+
 ## [0.4.1](https://github.com/Poliklot/prettier-plugin-handlebars/compare/prettier-plugin-handlebars-v0.4.0...prettier-plugin-handlebars-v0.4.1) (2026-09-13)
 
 
